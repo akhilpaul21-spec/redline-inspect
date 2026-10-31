@@ -137,7 +137,8 @@
 
   <script type="module" src="/main.js"></script>
   <script type="module">
-    import { init } from 'redline-inspect';
+    import { init } from '/redline-entry.ts';
+    window.__redlineInit = init;
     window.__redline = init(window.REDLINE_CONFIG);
   </script>
 </body>

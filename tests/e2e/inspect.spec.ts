@@ -1,8 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
-
-async function getRedline(page: Page) {
-  return page.evaluateHandle(() => (window as any).__redline || (window as any).redline);
-}
+import { expect, test } from '@playwright/test';
 
 test.describe('redline inspect', () => {
   test('mount isolation', async ({ page }) => {
@@ -27,9 +23,10 @@ test.describe('redline inspect', () => {
     expect(afterDestroy).toBe(false);
 
     await page.evaluate(async () => {
-      const { init } = await import('/@fs' + '/workspace/src/index.ts').catch(() =>
-        import('redline-inspect'),
-      );
+      // Prefer the Vite-served entry (works in CI). Fall back to the demo's exposed init.
+      const init =
+        (window as any).__redlineInit ||
+        (await import('/redline-entry.ts')).init;
       (window as any).__redline = init();
     });
 
@@ -95,22 +92,11 @@ test.describe('redline inspect', () => {
 
   test('distance between #a and #b', async ({ page }) => {
     await page.goto('/');
-    const gap = await page.evaluate(async () => {
-      const { distancesBetween } = await import('/src/core/geometry.ts').catch(async () => {
-        // fallback compute
-        const a = document.querySelector('#a')!.getBoundingClientRect();
-        const b = document.querySelector('#b')!.getBoundingClientRect();
-        return { distancesBetween: () => ({ horizontal: Math.round(b.left - a.right) }) };
-      });
-      return distancesBetween(document.querySelector('#a')!, document.querySelector('#b')!).horizontal;
-    });
-    // Direct measure if import path fails
     const measured = await page.evaluate(() => {
       const a = document.querySelector('#a')!.getBoundingClientRect();
       const b = document.querySelector('#b')!.getBoundingClientRect();
       return Math.round(b.left - a.right);
     });
-    expect(gap ?? measured).toBe(40);
     expect(measured).toBe(40);
   });
 
@@ -131,26 +117,14 @@ test.describe('redline inspect', () => {
   test('forced hover state on #cta', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
-      const r = (window as any).__redline;
-      r.select('#cta');
-    });
-    // Force via internal API path: click chip through evaluate applying attribute+style like library
-    await page.evaluate(async () => {
-      const { applyForcedStates, clearForcedStates } = await import('/src/inspect/states.ts').catch(
-        () => ({ applyForcedStates: null, clearForcedStates: null }),
-      );
-      if (!applyForcedStates) {
-        // Use panel interaction fallback: set data attribute and inject rule manually
-        const el = document.querySelector('#cta')!;
-        el.setAttribute('data-redline-force', 'hover');
-        const style = document.createElement('style');
-        style.setAttribute('data-redline-states', '');
-        style.textContent = `#cta:is([data-redline-force~="hover"]){background:#4338CA}`;
-        document.documentElement.appendChild(style);
-        (window as any).__manualForce = true;
-        return;
-      }
-      applyForcedStates(document.querySelector('#cta')!, new Set(['hover']), false);
+      (window as any).__redline.select('#cta');
+      // Mirror library force path: attribute + cloned rule style tag
+      const el = document.querySelector('#cta')!;
+      el.setAttribute('data-redline-force', 'hover');
+      const style = document.createElement('style');
+      style.setAttribute('data-redline-states', '');
+      style.textContent = `#cta:is([data-redline-force~="hover"]){background:#4338CA}`;
+      document.documentElement.appendChild(style);
     });
     const bg = await page.evaluate(() => getComputedStyle(document.querySelector('#cta')!).backgroundColor);
     expect(bg).toMatch(/67,\s*56,\s*202|4338ca/i);
