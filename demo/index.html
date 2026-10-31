@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redline demo</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script>
+    window.REDLINE_CONFIG = { startActive: false, theme: 'auto' };
+  </script>
+</head>
+<body>
+  <header class="sticky-header" id="site-header">
+    <nav class="nav">
+      <a class="brand" href="#top">redline</a>
+      <div class="nav-actions">
+        <button class="icon-btn" aria-label="search" id="search-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="menu" id="menu-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="close" id="close-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <span class="material-symbols" id="ms-icon">search</span>
+        <span class="pua-icon" id="pua-icon">&#xE001;</span>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" id="hero">
+      <picture>
+        <source type="image/webp" srcset="/hero.webp" />
+        <img
+          id="hero-img"
+          src="/hero.jpg"
+          srcset="/hero.jpg 1x, /hero@2x.jpg 2x"
+          width="800"
+          height="400"
+          alt="Hero"
+        />
+      </picture>
+      <div class="hero-copy">
+        <h1>Inspect HTML like Figma Dev Mode</h1>
+        <p>Drop-in redlines, specs, and asset export for vibecoded prototypes.</p>
+        <div class="cta-row">
+          <a href="#cards" class="link-btn">See cards</a>
+          <button
+            id="cta"
+            class="cta"
+            data-spec="Primary CTA. Max 24 chars. Truncate with ellipsis."
+            data-spec-state="Loading: spinner replaces label, width fixed"
+            data-spec-link="https://figma.com/"
+          >
+            Buy now
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pattern-band" id="pattern-band" aria-label="Pattern">
+      Pattern background fixture
+    </section>
+
+    <section class="wrap">
+      <h2>Card grid</h2>
+      <div class="card-grid" id="card-grid">
+        <article class="card">One</article>
+        <article class="card">Two</article>
+        <article class="card">Three</article>
+      </div>
+    </section>
+
+    <section class="wrap distance-lab">
+      <h2>Distance fixtures</h2>
+      <div class="distance-stage">
+        <div id="a">A</div>
+        <div id="b">B</div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>Scroll / sticky / transform / inline</h2>
+      <div class="scroll-box" id="scroll-box">
+        <p>Scroll me</p>
+        <div class="scroll-inner" id="scroll-target">Target inside scroll</div>
+        <p style="height: 240px">Spacer</p>
+      </div>
+      <div id="scaled" class="scaled">Scaled 1.5×</div>
+      <p class="wrap-inline">
+        Prefix
+        <span id="wrap-span">this is a long inline span that should wrap across multiple lines when the viewport is narrow enough for the test fixture expectations about getClientRects</span>
+        suffix
+      </p>
+    </section>
+
+    <section class="wrap">
+      <h2>Form</h2>
+      <form id="demo-form">
+        <label>Email <input type="email" name="email" /></label>
+        <button type="submit">Submit</button>
+      </form>
+    </section>
+
+    <section class="wrap">
+      <h2>Sprite + open shadow</h2>
+      <div id="sprite-host"></div>
+      <svg width="24" height="24" aria-label="star-use">
+        <use href="/sprite.svg#star"></use>
+      </svg>
+      <open-shadow-card id="shadow-card"></open-shadow-card>
+    </section>
+
+    <section class="wrap">
+      <h2>Same-origin iframe</h2>
+      <iframe id="same-iframe" src="/iframe.html" title="same origin" width="320" height="120"></iframe>
+    </section>
+
+    <section class="wrap tw-section">
+      <h2>Tailwind CDN section</h2>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <div class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md" id="tw-chip">
+        Tailwind chip
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>redline demo · MIT · <a href="/cross-origin.html">CORS fixture</a></p>
+    <p id="bookmarklet-hint">Bookmarklet appears after build in dist/bookmarklet.txt</p>
+  </footer>
+
+  <object data="/sprite.svg" type="image/svg+xml" hidden></object>
+
+  <script type="module" src="/main.js"></script>
+  <script type="module">
+    import { init } from '/redline-entry.ts';
+    window.__redlineInit = init;
+    window.__redline = init(window.REDLINE_CONFIG);
+  </script>
+</body>
+</html>

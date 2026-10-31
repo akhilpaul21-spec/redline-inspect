@@ -1,0 +1,86 @@
+{
+  "name": "redline-inspect",
+  "version": "0.1.0",
+  "description": "Figma Dev Mode–style inspect, redlines, and asset export for HTML prototypes",
+  "license": "MIT",
+  "author": "Akhil Paul",
+  "type": "module",
+  "main": "./dist/redline.cjs",
+  "module": "./dist/redline.esm.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/redline.esm.js",
+      "require": "./dist/redline.cjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite --config vite.demo.config.ts",
+    "build": "npm run build:lib && npm run build:plugin && npm run build:types && npm run build:bookmarklet",
+    "build:lib": "vite build --config vite.config.ts --mode esm && vite build --config vite.config.ts --mode cjs && vite build --config vite.config.ts --mode iife",
+    "build:plugin": "vite build --config vite.plugin.config.ts",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "build:bookmarklet": "node bookmarklet/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "size": "size-limit",
+    "preview": "vite preview --config vite.demo.config.ts",
+    "prepublishOnly": "npm run build && npm run size"
+  },
+  "peerDependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.49.1",
+    "@size-limit/file": "^11.1.6",
+    "@types/node": "^22.10.2",
+    "ajv": "^8.17.1",
+    "eslint": "^9.17.0",
+    "happy-dom": "^15.11.7",
+    "jszip": "^3.10.1",
+    "size-limit": "^11.1.6",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vite": "^6.0.5",
+    "vite-plugin-dts": "^4.4.0",
+    "vitest": "^2.1.8"
+  },
+  "optionalDependencies": {
+    "jszip": "^3.10.1"
+  },
+  "size-limit": [
+    {
+      "name": "core esm (excl. JSZip)",
+      "path": "dist/redline.esm.js",
+      "limit": "50 kB",
+      "gzip": true
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akhilpaul21-spec/redline-inspect.git"
+  },
+  "keywords": [
+    "inspect",
+    "redline",
+    "design-handoff",
+    "devtools",
+    "prototype"
+  ]
+}
