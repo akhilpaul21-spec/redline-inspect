@@ -1,0 +1,8 @@
+[
+  {
+    "name": "core esm (excl. JSZip)",
+    "path": "dist/redline.esm.js",
+    "limit": "50 kB",
+    "gzip": true
+  }
+]

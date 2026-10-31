@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redline CORS fixture</title>
+</head>
+<body>
+  <h1>CORS fixture</h1>
+  <p>Image below is routed by Playwright without Access-Control-Allow-Origin.</p>
+  <img id="cors-img" src="https://cors-fixture.invalid/no-cors.png" width="64" height="64" alt="no cors" crossorigin="anonymous" />
+  <script type="module">
+    import { init } from 'redline-inspect';
+    window.__redline = init({ startActive: false });
+  </script>
+</body>
+</html>
