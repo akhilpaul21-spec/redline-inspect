@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { shadowClick, shadowCount, shadowFill, shadowText } from './shadow';
 
 test.describe('redline inspect', () => {
   test('mount isolation', async ({ page }) => {
@@ -42,22 +43,110 @@ test.describe('redline inspect', () => {
   });
 
   test('default state is FAB only', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     const state = await page.evaluate(() => {
       const host = document.querySelector('redline-root')!;
-      // closed shadow — probe via public behavior
       const cursor = getComputedStyle(document.documentElement).cursor;
+      // Where a 340px right panel would sit — must hit page content, not redline-root
+      const underPanel = document.elementFromPoint(window.innerWidth - 80, 120);
+      const midRight = document.elementFromPoint(window.innerWidth - 160, 200);
       return {
         hasRoot: !!host,
         cursor,
-        linkWorks: true,
+        underPanelTag: underPanel?.tagName ?? null,
+        midRightTag: midRight?.tagName ?? null,
       };
     });
     expect(state.hasRoot).toBe(true);
     expect(state.cursor === 'crosshair').toBe(false);
-    // Panel closed: host clicks still work
+    expect(state.underPanelTag).not.toBe('REDLINE-ROOT');
+    expect(state.midRightTag).not.toBe('REDLINE-ROOT');
+
+    // Clicks in the would-be panel zone must reach the page (no intercept)
+    await page.mouse.click(1200, 100);
     await page.click('a.link-btn');
     await expect(page).toHaveURL(/#cards/);
+  });
+
+  test('push mode keeps right-edge content visible and selectable', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.evaluate(() => {
+      const el = document.createElement('button');
+      el.id = 'right-edge';
+      el.textContent = 'EDGE';
+      el.style.cssText =
+        'position:absolute;right:0;top:180px;width:48px;height:48px;background:#e11;color:#fff;z-index:5;border:0;';
+      document.body.appendChild(el);
+      (window as any).__redline.toggle(true);
+    });
+    await page.waitForTimeout(220);
+
+    const layout = await page.evaluate(() => {
+      const html = document.documentElement;
+      const body = document.body;
+      const edge = document.getElementById('right-edge')!;
+      const r = edge.getBoundingClientRect();
+      const panelLeft = window.innerWidth - 320;
+      return {
+        marginRight: html.style.marginRight,
+        bodyWidth: body.style.width,
+        bodyPosition: body.style.position,
+        edgeRight: r.right,
+        edgeLeft: r.left,
+        innerWidth: window.innerWidth,
+        panelLeft,
+        clearOfPanel: r.right <= panelLeft + 1,
+      };
+    });
+    expect(layout.marginRight).toBe('320px');
+    expect(layout.bodyWidth).toContain('320');
+    expect(layout.bodyPosition).toBe('relative');
+    expect(layout.clearOfPanel).toBe(true);
+    expect(layout.edgeRight).toBeLessThanOrEqual(layout.panelLeft + 1);
+
+    const box = await page.locator('#right-edge').boundingBox();
+    expect(box).toBeTruthy();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.waitForTimeout(80);
+    const selected = await page.evaluate(() => {
+      const shadow = (window as any).__redline.__shadow as ShadowRoot;
+      return shadow.textContent || '';
+    });
+    expect(selected).toMatch(/button#right-edge|right-edge/);
+
+    await page.evaluate(() => (window as any).__redline.toggle(false));
+    await page.waitForTimeout(220);
+    const restored = await page.evaluate(() => ({
+      marginRight: document.documentElement.style.marginRight,
+      bodyWidth: document.body.style.width,
+      bodyPosition: document.body.style.position,
+    }));
+    expect(restored.marginRight).toBe('');
+    expect(restored.bodyWidth).toBe('');
+    expect(restored.bodyPosition).toBe('');
+  });
+
+  test('closed panel is not visible and does not intercept clicks', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    // Open then close
+    await page.evaluate(() => {
+      (window as any).__redline.toggle(true);
+      (window as any).__redline.toggle(false);
+    });
+    const afterClose = await page.evaluate(() => {
+      const hit = document.elementFromPoint(window.innerWidth - 80, 140);
+      return {
+        hitTag: hit?.tagName ?? null,
+        cursor: getComputedStyle(document.documentElement).cursor,
+      };
+    });
+    expect(afterClose.hitTag).not.toBe('REDLINE-ROOT');
+    expect(afterClose.cursor === 'crosshair').toBe(false);
+    await page.click('a.brand');
+    await expect(page).toHaveURL(/#top/);
   });
 
   test('toggle opens panel and blocks navigation', async ({ page }) => {
@@ -93,6 +182,68 @@ test.describe('redline inspect', () => {
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe('Ship it');
     expect(result[0].selector).toBe('#cta');
+  });
+
+  test('add comment via UI lists it, pins it, and survives reload', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForFunction(() => (window as any).__redline);
+
+    await page.evaluate(() => {
+      (window as any).__redline.toggle(true);
+      (window as any).__redline.select('#cta');
+    });
+
+    await shadowClick(page, '.rl-tabs-main button:nth-child(2)');
+    await shadowFill(page, 'textarea', 'Tighten CTA padding');
+
+    // Hover the page while drafting — previously rebuilt the panel and wiped the draft.
+    const cta = await page.locator('#cta').boundingBox();
+    await page.mouse.move(cta!.x + 4, cta!.y + 4);
+    await page.waitForTimeout(50);
+
+    // Draft must still be present after hover-driven overlay paints
+    expect(await page.evaluate(() => {
+      const ta = (window as any).__redline.__shadow.querySelector('textarea');
+      return ta?.value;
+    })).toBe('Tighten CTA padding');
+
+    await shadowClick(page, 'button.rl-primary');
+    await page.waitForTimeout(50);
+
+    let text = await shadowText(page);
+    expect(text).toContain('Tighten CTA padding');
+    expect(text).toContain('button#cta');
+    expect(text).toMatch(/Comments\s*1/);
+    expect(await shadowCount(page, '.rl-comment-item')).toBe(1);
+    expect(await shadowCount(page, '.rl-comment-pin')).toBe(1);
+
+    const stored = await page.evaluate(() => {
+      const key = `redline:comments:${location.origin}${location.pathname}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].label).toBe('button#cta');
+
+    // Click the listed comment → jumps to element / Inspect
+    await shadowClick(page, '.rl-comment-item');
+    await page.waitForTimeout(50);
+    text = await shadowText(page);
+    expect(await shadowCount(page, '.rl-tabs-main button.active')).toBe(1);
+    expect(await page.evaluate(() => {
+      const active = (window as any).__redline.__shadow.querySelector('.rl-tabs-main button.active');
+      return active?.textContent || '';
+    })).toContain('Inspect');
+
+    // Reload — comment still listed
+    await page.reload();
+    await page.waitForFunction(() => (window as any).__redline);
+    await page.evaluate(() => (window as any).__redline.toggle(true));
+    await shadowClick(page, '.rl-tabs-main button:nth-child(2)');
+    text = await shadowText(page);
+    expect(text).toContain('Tighten CTA padding');
+    expect(text).toContain('button#cta');
   });
 
   test('box model on #cta', async ({ page }) => {

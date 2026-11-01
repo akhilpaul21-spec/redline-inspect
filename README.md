@@ -21,7 +21,7 @@ By default you only see a small **ruler button** (bottom-right). Click it (or pr
 
 Close the panel with the ✕ button or the ruler again. Grid lines, units, viewport info, and the shortcut cheat sheet live in the panel header (the old floating top toolbar is gone).
 
-UI text uses an explicit sans-serif system stack inside the shadow root so host page fonts never leak in.
+UI text uses an explicit sans-serif system stack inside the shadow root so host page fonts never leak in. The chrome is styled like the **Cursor editor**: near-black surfaces (`#181818` / `#1e1e1e`), subtle `#2a2a2a` borders, 6–8px radii, compact 12–13px type, underline tabs, ghost icon buttons, and a restrained accent — with soft shadows only on the floating ruler.
 
 <!-- TODO: demo GIF (select → redlines → Alt distance → export) -->
 
@@ -105,7 +105,8 @@ All shortcuts are configurable. On macOS they're shown as ⌥⇧.
 | `showFab` | `boolean` | `true` | Show the floating toggle button |
 | `fabPosition` | `'bottom-right' \| 'bottom-left' \| 'top-right' \| 'top-left'` | `'bottom-right'` | Button position |
 | `panelSide` | `'right' \| 'left'` | `'right'` | Side panel position |
-| `theme` | `'dark' \| 'light' \| 'auto'` | `'auto'` | UI theme |
+| `panelMode` | `'push' \| 'overlay'` | `'push'` | Push page content aside (default) or overlay it |
+| `theme` | `'dark' \| 'light' \| 'auto'` | `'dark'` | UI theme (Cursor-like dark by default) |
 | `units` | `'px' \| 'rem' \| 'both'` | `'both'` | Units shown in labels and panel |
 | `remBase` | `number \| 'auto'` | `'auto'` | Root font size for rem (auto = computed `html` font-size) |
 | `tailwind` | `boolean` | `true` | Show the Tailwind-ish snippet tab |
@@ -199,14 +200,15 @@ Toggle `:hover`, `:focus`, `:focus-visible`, `:active`, `:disabled`, and `:check
 
 ```
 <host>-assets.zip
-├─ manifest.json   # every asset with source URL, size, density, and usedBy selectors
-├─ README.txt      # anything that couldn't be fetched
-├─ icons/          # SVG icons, sprite symbols, icon-font glyph PNGs
+├─ manifest.json   # page meta, every asset (source URL, size, density, usedBy), fonts, iconFonts, gradients, unfetchable, comments
+├─ comments.json   # user comments from the Comments tab (same payload as in the manifest)
+├─ README.txt      # anything that couldn't be fetched (or “All assets fetched successfully.”)
+├─ icons/          # SVG icons, sprite symbols, icon-font glyph PNGs (under icons/glyphs/)
 ├─ images/         # raster images and larger SVGs
 └─ fonts/          # woff2 / woff / ttf / otf
 ```
 
-Assets blocked by CORS never break the export; they're listed in `manifest.unfetchable` with a reason.
+Assets blocked by CORS never break the export; they're listed in `manifest.unfetchable` with a reason. If JSZip cannot load, export falls back to a `manifest.json` Blob instead of a ZIP.
 
 ---
 

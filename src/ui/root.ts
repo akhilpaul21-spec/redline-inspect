@@ -13,15 +13,17 @@ export function mountRoot(theme: 'dark' | 'light' | 'auto'): RedlineRoot {
   existing?.remove();
 
   const host = document.createElement('redline-root');
+  // Host must not paint a full-viewport surface; children opt into pointer events.
   host.style.cssText =
-    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;';
+    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;background:transparent;border:none;box-shadow:none;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;';
   const shadow = host.attachShadow({ mode: 'closed' });
 
   const sheetOk = applyStyles(shadow, styles);
   void sheetOk;
 
   const root = h('div', { class: 'rl-root' });
-  applyTheme(root, theme);
+  root.style.cssText = 'background:transparent;pointer-events:none;';
+  applyTheme(host, root, theme);
   const layer = h('div', { class: 'rl-layer' });
   root.appendChild(layer);
   shadow.appendChild(root);
@@ -29,7 +31,7 @@ export function mountRoot(theme: 'dark' | 'light' | 'auto'): RedlineRoot {
 
   const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
   const onScheme = () => {
-    if (theme === 'auto') applyTheme(root, 'auto');
+    if (theme === 'auto') applyTheme(host, root, 'auto');
   };
   mq?.addEventListener?.('change', onScheme);
 
@@ -61,11 +63,12 @@ function applyStyles(shadow: ShadowRoot, css: string): boolean {
   return false;
 }
 
-function applyTheme(root: HTMLElement, theme: 'dark' | 'light' | 'auto'): void {
+function applyTheme(host: HTMLElement, root: HTMLElement, theme: 'dark' | 'light' | 'auto'): void {
   let t = theme;
   if (theme === 'auto') {
     t = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  host.dataset.theme = t;
   root.dataset.theme = t;
 }
 

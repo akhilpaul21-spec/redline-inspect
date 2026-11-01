@@ -10,13 +10,17 @@ test.describe('asset export', () => {
       return Array.from(new Uint8Array(ab));
     });
     const zip = await JSZip.loadAsync(new Uint8Array(buffer));
-    const names = Object.keys(zip.files);
-    expect(names.some((n) => n.includes('manifest.json'))).toBe(true);
-    expect(names.some((n) => n.includes('README.txt'))).toBe(true);
-    // icons / images / fonts folders may vary with naming; check kinds via manifest
+    const names = Object.keys(zip.files).filter((n) => !zip.files[n]!.dir);
+    // Always-present meta files
+    expect(names).toEqual(expect.arrayContaining(['manifest.json', 'README.txt', 'comments.json']));
+    expect(names.some((n) => n.startsWith('icons/'))).toBe(true);
+    expect(names.some((n) => n.startsWith('images/'))).toBe(true);
+    expect(names.some((n) => n.startsWith('fonts/'))).toBe(true);
+
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
     expect(manifest.generator).toMatch(/redline/);
     expect(manifest.assets.length).toBeGreaterThan(0);
+    expect(Array.isArray(manifest.comments)).toBe(true);
     const files = manifest.assets.map((a: any) => a.file as string);
     expect(
       files.some((f: string) => f.startsWith('icons/') && /search|menu|close/.test(f)),
@@ -24,12 +28,33 @@ test.describe('asset export', () => {
     expect(files.some((f: string) => f.includes('hero'))).toBeTruthy();
     expect(files.some((f: string) => f.includes('pattern'))).toBeTruthy();
     expect(files.some((f: string) => f.startsWith('fonts/') && f.includes('inter'))).toBeTruthy();
-    // SVG sanitized
     const svgFile = files.find((f: string) => f.endsWith('.svg'));
     if (svgFile) {
       const svg = await zip.file(svgFile)!.async('string');
       expect(svg).not.toMatch(/<script/i);
     }
+  });
+
+  test('Export download saves a ZIP with expected entries', async ({ page }) => {
+    await page.goto('/');
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(() => (window as any).__redline.exportAssets()),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/assets\.(zip|json)$/);
+    const path = await download.path();
+    expect(path).toBeTruthy();
+    const fs = await import('node:fs/promises');
+    const bytes = await fs.readFile(path!);
+    // ZIP local file header signature
+    expect(bytes[0]).toBe(0x50);
+    expect(bytes[1]).toBe(0x4b);
+    const zip = await JSZip.loadAsync(bytes);
+    const names = Object.keys(zip.files).filter((n) => !zip.files[n]!.dir).sort();
+    expect(names).toEqual(expect.arrayContaining(['manifest.json', 'README.txt', 'comments.json']));
+    expect(names.some((n) => n.startsWith('icons/'))).toBe(true);
+    expect(names.some((n) => n.startsWith('images/'))).toBe(true);
+    expect(names.some((n) => n.startsWith('fonts/'))).toBe(true);
   });
 
   test('CORS unfetchable recorded', async ({ page }) => {

@@ -106,9 +106,15 @@ export function attachEvents(store: Store, handlers: EventHandlers): () => void 
       return;
     }
 
+    // Focus inside closed shadow retargets to the host — don't steal keys from
+    // the Comments textarea / panel controls (Enter, arrows, typing, etc.).
+    const shadow = handlers.getShadowRoot();
+    if (shadow && document.activeElement === shadow.host) {
+      return;
+    }
+
     if (!store.get().active) return;
 
-    // Ignore when typing in host inputs unless inspect active — then we still capture
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();

@@ -8,13 +8,19 @@ export interface RedlineComment {
   createdAt: string;
 }
 
-function storageKey(url = location.href): string {
+/** Normalize to origin+pathname (no hash/search) so comments survive #anchors. */
+export function commentsStorageKey(url = location.href): string {
   try {
-    const u = new URL(url);
-    return `redline:comments:${u.origin}${u.pathname}`;
+    const u = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
+    const path = u.pathname || '/';
+    return `redline:comments:${u.origin}${path}`;
   } catch {
-    return `redline:comments:${url}`;
+    return `redline:comments:${url.split('#')[0]?.split('?')[0] || url}`;
   }
+}
+
+function storageKey(url = location.href): string {
+  return commentsStorageKey(url);
 }
 
 export function loadComments(url = location.href): RedlineComment[] {

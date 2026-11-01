@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addComment, elementLabel, loadComments, removeComment, saveComments } from '../../src/comments/store';
+import {
+  addComment,
+  commentsStorageKey,
+  elementLabel,
+  loadComments,
+  removeComment,
+  saveComments,
+} from '../../src/comments/store';
 
 describe('comments store', () => {
   beforeEach(() => {
@@ -9,6 +16,12 @@ describe('comments store', () => {
 
   it('labels elements with id', () => {
     expect(elementLabel(document.querySelector('#cta')!)).toBe('button#cta');
+  });
+
+  it('storage key ignores hash and search', () => {
+    const base = `${location.origin}${location.pathname}`;
+    expect(commentsStorageKey(`${location.origin}${location.pathname}#cards`)).toBe(`redline:comments:${base}`);
+    expect(commentsStorageKey(`${location.origin}${location.pathname}?x=1`)).toBe(`redline:comments:${base}`);
   });
 
   it('persists add/remove in localStorage', () => {

@@ -32,6 +32,27 @@ export function createOverlay(layer: HTMLElement) {
     clear(hoverLayer);
     clear(measureLayer);
     clear(notesLayer);
+
+    // Comment pins stay visible whenever comments are passed (panel open),
+    // even if Inspect hover chrome is idle.
+    if (state.comments?.length) {
+      const seen = new Set<Element>();
+      for (const c of state.comments) {
+        const el = resolveCommentElement(c);
+        if (!el || seen.has(el)) continue;
+        seen.add(el);
+        const r = el.getBoundingClientRect();
+        if (!r.width && !r.height) continue;
+        notesLayer.appendChild(
+          h('div', {
+            class: 'rl-comment-pin',
+            title: c.text,
+            style: { left: `${r.left - 2}px`, top: `${r.top - 2}px` },
+          }),
+        );
+      }
+    }
+
     if (!state.active) return;
 
     if (state.hovered && state.hovered !== state.selected) {
@@ -62,24 +83,6 @@ export function createOverlay(layer: HTMLElement) {
           }),
         );
       });
-    }
-
-    if (state.comments?.length) {
-      const seen = new Set<Element>();
-      for (const c of state.comments) {
-        const el = resolveCommentElement(c);
-        if (!el || seen.has(el)) continue;
-        seen.add(el);
-        const r = el.getBoundingClientRect();
-        if (!r.width && !r.height) continue;
-        notesLayer.appendChild(
-          h('div', {
-            class: 'rl-comment-pin',
-            title: c.text,
-            style: { left: `${r.left - 2}px`, top: `${r.top - 2}px` },
-          }),
-        );
-      }
     }
   }
 
