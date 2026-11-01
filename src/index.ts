@@ -81,7 +81,12 @@ export function init(config?: RedlineConfig): RedlineInstance {
     tokens = collectTokens(cfg.tokenPrefixes);
   };
 
-  const renderOverlays = rafThrottle(() => {
+  /**
+   * Overlay paints (box model, pins, hover) are cheap and run often.
+   * Panel DOM must NOT rebuild on hover — that wiped the Comments textarea
+   * mid-edit so Add comment saved nothing and the list looked broken.
+   */
+  const paintOverlay = rafThrottle(() => {
     const s = store.get();
     overlay.render({
       selected: s.selected,
@@ -92,14 +97,22 @@ export function init(config?: RedlineConfig): RedlineInstance {
       remBase: cfg.remBase,
       showNotes: s.showNotes,
       active: s.active,
-      comments: s.panelOpen ? comments : [],
+      comments: s.panelOpen || s.active ? comments : [],
     });
     document.documentElement.style.cursor = s.active ? 'crosshair' : '';
     fab?.sync();
+  });
 
+  const paintPanel = (): void => {
+    const s = store.get();
     const spec = s.selected ? buildElementSpec(s.selected, tokens, cfg.remBase) : null;
     panel.render(spec, panelOpts());
-  });
+  };
+
+  const renderAll = (): void => {
+    paintOverlay();
+    paintPanel();
+  };
 
   const panelOpts = () => {
     const s = store.get();
@@ -117,7 +130,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
       comments,
       onTab: (tab: PanelTab) => {
         panelTab = tab;
-        renderOverlays();
+        paintPanel();
       },
       onClose: () => instance.toggle(false),
       onCrumb: (sel: string) => {
@@ -134,18 +147,18 @@ export function init(config?: RedlineConfig): RedlineInstance {
         else next.add(state);
         store.set({ forcedStates: next });
         if (s.selected) applyForcedStates(s.selected, next, s.forceSubtree);
-        renderOverlays();
+        renderAll();
       },
       onForceSubtree: (v: boolean) => {
         store.set({ forceSubtree: v });
         if (s.selected) applyForcedStates(s.selected, s.forcedStates, v);
-        renderOverlays();
+        renderAll();
       },
       onCopySelector: () => showToast(root.shadow, 'Copied'),
       onCycleUnits: cycleUnits,
       onToggleGrid: () => {
         store.set({ showGridLines: !store.get().showGridLines });
-        renderOverlays();
+        renderAll();
       },
       onHelp: () => showCheatSheet(root.shadow, () => {}),
       onExportAssets: () => void doExportAssets(),
@@ -155,13 +168,18 @@ export function init(config?: RedlineConfig): RedlineInstance {
         const el = store.get().selected;
         if (!el) return;
         comments = addComment(el, text, comments);
+        // Re-read from storage so list matches what survived persistence.
+        comments = loadComments();
         panelTab = 'comments';
         showToast(root.shadow, 'Comment added');
-        renderOverlays();
+        paintOverlay();
+        paintPanel();
       },
       onDeleteComment: (id: string) => {
         comments = removeComment(id, comments);
-        renderOverlays();
+        comments = loadComments();
+        paintOverlay();
+        paintPanel();
       },
       onSelectComment: (comment: RedlineComment) => {
         const el = resolveCommentElement(comment);
@@ -172,7 +190,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         instance.select(el);
         panelTab = 'inspect';
-        renderOverlays();
+        renderAll();
       },
     };
   };
@@ -182,7 +200,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
     const cur = store.get().units;
     const next = order[(order.indexOf(cur) + 1) % order.length]!;
     store.set({ units: next });
-    renderOverlays();
+    renderAll();
   }
 
   async function doExportAssets(): Promise<Blob> {
@@ -212,23 +230,35 @@ export function init(config?: RedlineConfig): RedlineInstance {
     observers.forEach((o) => o.disconnect());
     observers = [];
     if (!el) return;
-    const ro = new ResizeObserver(() => renderOverlays());
+    const ro = new ResizeObserver(() => {
+      paintOverlay();
+      paintPanel();
+    });
     ro.observe(el);
     observers.push(ro);
     const mo = new MutationObserver(() => {
       if (!el.isConnected) {
         store.set({ selected: null });
         clearForcedStates();
-        renderOverlays();
-      } else renderOverlays();
+        renderAll();
+      } else {
+        paintOverlay();
+        paintPanel();
+      }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
     observers.push(mo);
   }
 
-  const onScrollOrResize = rafThrottle(() => renderOverlays());
+  const onScrollOrResize = rafThrottle(() => {
+    paintOverlay();
+  });
+  const onViewportResize = rafThrottle(() => {
+    paintOverlay();
+    paintPanel();
+  });
   window.addEventListener('scroll', onScrollOrResize, true);
-  window.addEventListener('resize', onScrollOrResize);
+  window.addEventListener('resize', onViewportResize);
 
   const detachEvents = attachEvents(store, {
     onToggle: () => instance.toggle(),
@@ -244,12 +274,13 @@ export function init(config?: RedlineConfig): RedlineInstance {
         cfg.onSelect?.(buildElementSpec(el, tokens, cfg.remBase));
       }
       watchSelected(el);
-      renderOverlays();
+      renderAll();
     },
     onHover: (el, alt) => {
       altHover = alt;
       store.set({ hovered: el });
-      renderOverlays();
+      // Overlay only — rebuilding the panel here cleared the Comments draft.
+      paintOverlay();
     },
     onExport: () => void doExportAssets(),
     onCopyCss: async () => {
@@ -262,7 +293,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
     onCycleUnits: cycleUnits,
     onToggleGrid: () => {
       store.set({ showGridLines: !store.get().showGridLines });
-      renderOverlays();
+      renderAll();
     },
     onNavigate: (dir) => {
       const next = navigateSelection(store.get().selected, dir);
@@ -274,14 +305,14 @@ export function init(config?: RedlineConfig): RedlineInstance {
         clearForcedStates();
         store.set({ selected: null, pinned: [], forcedStates: new Set() });
         watchSelected(null);
-        renderOverlays();
+        renderAll();
       } else {
         instance.toggle(false);
       }
     },
     onOpenPanel: () => {
       store.set({ panelOpen: true, active: true });
-      renderOverlays();
+      renderAll();
     },
     onCheatSheet: () => showCheatSheet(root.shadow, () => {}),
     getShadowRoot: () => root.shadow,
@@ -294,7 +325,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
     comments = loadComments();
     store.set({ selected: null });
     clearForcedStates();
-    renderOverlays();
+    renderAll();
   };
   window.addEventListener('popstate', onPop);
   const origPush = history.pushState.bind(history);
@@ -327,7 +358,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
         });
         watchSelected(null);
       }
-      renderOverlays();
+      renderAll();
     },
     select(el) {
       const node = resolveEl(el);
@@ -340,7 +371,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
       });
       watchSelected(node);
       cfg.onSelect?.(buildElementSpec(node, tokens, cfg.remBase));
-      renderOverlays();
+      renderAll();
     },
     getSpec(el) {
       return buildElementSpec(resolveEl(el), tokens, cfg.remBase);
@@ -356,11 +387,12 @@ export function init(config?: RedlineConfig): RedlineInstance {
     detachEvents();
     unsub();
     window.removeEventListener('scroll', onScrollOrResize, true);
-    window.removeEventListener('resize', onScrollOrResize);
+    window.removeEventListener('resize', onViewportResize);
     window.removeEventListener('popstate', onPop);
     history.pushState = origPush;
     onScrollOrResize.cancel();
-    renderOverlays.cancel();
+    onViewportResize.cancel();
+    paintOverlay.cancel();
     observers.forEach((o) => o.disconnect());
     clearForcedStates();
     setPauseAnimations(false);
@@ -372,11 +404,18 @@ export function init(config?: RedlineConfig): RedlineInstance {
     destroyInternal = null;
   };
 
-  renderOverlays();
+  renderAll();
   if (store.get().active) refreshTokens();
 
   singleton = instance;
-  if (typeof window !== 'undefined') window.redline = instance;
+  if (typeof window !== 'undefined') {
+    window.redline = instance;
+    // Closed shadow is opaque to page JS; e2e reaches it through this hook.
+    Object.defineProperty(instance, '__shadow', {
+      get: () => root.shadow,
+      enumerable: false,
+    });
+  }
   return instance;
 }
 

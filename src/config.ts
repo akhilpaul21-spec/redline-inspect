@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: Required<
   showFab: true,
   fabPosition: 'bottom-right',
   panelSide: 'right',
+  panelMode: 'push',
   theme: 'dark',
   units: 'both',
   remBase: 'auto',
@@ -76,6 +77,7 @@ export function configFromScript(script: HTMLScriptElement | null): RedlineConfi
     theme: (script.getAttribute('data-theme') as RedlineConfig['theme']) ?? undefined,
     units: (script.getAttribute('data-units') as RedlineConfig['units']) ?? undefined,
     panelSide: (script.getAttribute('data-panel-side') as RedlineConfig['panelSide']) ?? undefined,
+    panelMode: (script.getAttribute('data-panel-mode') as RedlineConfig['panelMode']) ?? undefined,
     tailwind: bool(script.getAttribute('data-tailwind')),
   };
 

@@ -2,6 +2,7 @@ export type UnitsMode = 'px' | 'rem' | 'both';
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type FabPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 export type PanelSide = 'right' | 'left';
+export type PanelMode = 'push' | 'overlay';
 export type ForceState = 'hover' | 'focus' | 'focus-visible' | 'active' | 'disabled' | 'checked';
 
 export interface AssetsConfig {
@@ -21,6 +22,8 @@ export interface RedlineConfig {
   showFab?: boolean;
   fabPosition?: FabPosition;
   panelSide?: PanelSide;
+  /** Docked panel: push page content aside (default) or overlay it. */
+  panelMode?: PanelMode;
   theme?: ThemeMode;
   units?: UnitsMode;
   remBase?: number | 'auto';

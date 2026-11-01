@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { shadowClick, shadowCount, shadowFill, shadowText } from './shadow';
 
 test.describe('redline inspect', () => {
   test('mount isolation', async ({ page }) => {
@@ -122,6 +123,68 @@ test.describe('redline inspect', () => {
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe('Ship it');
     expect(result[0].selector).toBe('#cta');
+  });
+
+  test('add comment via UI lists it, pins it, and survives reload', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForFunction(() => (window as any).__redline);
+
+    await page.evaluate(() => {
+      (window as any).__redline.toggle(true);
+      (window as any).__redline.select('#cta');
+    });
+
+    await shadowClick(page, '.rl-tabs-main button:nth-child(2)');
+    await shadowFill(page, 'textarea', 'Tighten CTA padding');
+
+    // Hover the page while drafting — previously rebuilt the panel and wiped the draft.
+    const cta = await page.locator('#cta').boundingBox();
+    await page.mouse.move(cta!.x + 4, cta!.y + 4);
+    await page.waitForTimeout(50);
+
+    // Draft must still be present after hover-driven overlay paints
+    expect(await page.evaluate(() => {
+      const ta = (window as any).__redline.__shadow.querySelector('textarea');
+      return ta?.value;
+    })).toBe('Tighten CTA padding');
+
+    await shadowClick(page, 'button.rl-primary');
+    await page.waitForTimeout(50);
+
+    let text = await shadowText(page);
+    expect(text).toContain('Tighten CTA padding');
+    expect(text).toContain('button#cta');
+    expect(text).toMatch(/Comments\s*1/);
+    expect(await shadowCount(page, '.rl-comment-item')).toBe(1);
+    expect(await shadowCount(page, '.rl-comment-pin')).toBe(1);
+
+    const stored = await page.evaluate(() => {
+      const key = `redline:comments:${location.origin}${location.pathname}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].label).toBe('button#cta');
+
+    // Click the listed comment → jumps to element / Inspect
+    await shadowClick(page, '.rl-comment-item');
+    await page.waitForTimeout(50);
+    text = await shadowText(page);
+    expect(await shadowCount(page, '.rl-tabs-main button.active')).toBe(1);
+    expect(await page.evaluate(() => {
+      const active = (window as any).__redline.__shadow.querySelector('.rl-tabs-main button.active');
+      return active?.textContent || '';
+    })).toContain('Inspect');
+
+    // Reload — comment still listed
+    await page.reload();
+    await page.waitForFunction(() => (window as any).__redline);
+    await page.evaluate(() => (window as any).__redline.toggle(true));
+    await shadowClick(page, '.rl-tabs-main button:nth-child(2)');
+    text = await shadowText(page);
+    expect(text).toContain('Tighten CTA padding');
+    expect(text).toContain('button#cta');
   });
 
   test('box model on #cta', async ({ page }) => {
