@@ -1,4 +1,5 @@
 import type { RedlineConfig } from '../types';
+import type { RedlineComment } from '../comments/store';
 import { collectAssets } from './collect';
 import { canvasFallback, fetchAsset, mapPool } from './fetch';
 import { dedupeName, sha1Hex } from './naming';
@@ -34,6 +35,7 @@ async function loadJSZip(jszipUrl?: string): Promise<any> {
 export async function exportAssetsZip(
   config: RedlineConfig,
   onProgress?: ProgressFn,
+  comments: RedlineComment[] = [],
 ): Promise<Blob> {
   const assetsCfg = config.assets ?? {};
   onProgress?.('Collecting…');
@@ -190,6 +192,7 @@ export async function exportAssetsZip(
     iconFonts: groupIconFonts(iconFonts),
     gradients: collected.gradients,
     unfetchable,
+    comments,
   };
 
   const readme =
@@ -198,6 +201,7 @@ export async function exportAssetsZip(
       : `Unfetchable assets (download manually):\n${unfetchable.map((u) => `- ${u.url} (${u.reason})`).join('\n')}\n`;
 
   files.set('manifest.json', new TextEncoder().encode(JSON.stringify(manifest, null, 2)));
+  files.set('comments.json', new TextEncoder().encode(JSON.stringify(comments, null, 2)));
   files.set('README.txt', new TextEncoder().encode(readme));
 
   try {

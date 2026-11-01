@@ -30,7 +30,7 @@ export function createStore(initial: Partial<AppState> = {}) {
     showGridLines: false,
     pauseAnimations: false,
     panelCollapsed: false,
-    panelOpen: true,
+    panelOpen: false,
     ...initial,
   };
 

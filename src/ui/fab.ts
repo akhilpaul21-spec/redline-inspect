@@ -15,8 +15,8 @@ export function createFab(
   const el = h('button', {
     class: 'rl-fab',
     type: 'button',
-    title: 'Inspect (⌥⇧R)',
-    'aria-label': 'Toggle Inspect',
+    title: 'Open redline (⌥⇧R)',
+    'aria-label': 'Open redline panel',
   });
   el.innerHTML = RULER;
   host.appendChild(el);
