@@ -15,6 +15,8 @@ test.describe('edge cases', () => {
       (window as any).__redline.toggle(true);
       (window as any).__redline.select('#scroll-target');
     });
+    // Wait for panel push-mode layout transition to settle before measuring.
+    await page.waitForTimeout(200);
     const before = await page.evaluate(() => document.querySelector('#scroll-target')!.getBoundingClientRect().top);
     await page.locator('#scroll-box').evaluate((el) => {
       el.scrollTop = 80;

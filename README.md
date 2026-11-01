@@ -105,6 +105,7 @@ All shortcuts are configurable. On macOS they're shown as ⌥⇧.
 | `showFab` | `boolean` | `true` | Show the floating toggle button |
 | `fabPosition` | `'bottom-right' \| 'bottom-left' \| 'top-right' \| 'top-left'` | `'bottom-right'` | Button position |
 | `panelSide` | `'right' \| 'left'` | `'right'` | Side panel position |
+| `panelMode` | `'push' \| 'overlay'` | `'push'` | Push page content aside (default) or overlay it |
 | `theme` | `'dark' \| 'light' \| 'auto'` | `'dark'` | UI theme (Cursor-like dark by default) |
 | `units` | `'px' \| 'rem' \| 'both'` | `'both'` | Units shown in labels and panel |
 | `remBase` | `number \| 'auto'` | `'auto'` | Root font size for rem (auto = computed `html` font-size) |
@@ -199,14 +200,15 @@ Toggle `:hover`, `:focus`, `:focus-visible`, `:active`, `:disabled`, and `:check
 
 ```
 <host>-assets.zip
-├─ manifest.json   # every asset with source URL, size, density, and usedBy selectors
-├─ README.txt      # anything that couldn't be fetched
-├─ icons/          # SVG icons, sprite symbols, icon-font glyph PNGs
+├─ manifest.json   # page meta, every asset (source URL, size, density, usedBy), fonts, iconFonts, gradients, unfetchable, comments
+├─ comments.json   # user comments from the Comments tab (same payload as in the manifest)
+├─ README.txt      # anything that couldn't be fetched (or “All assets fetched successfully.”)
+├─ icons/          # SVG icons, sprite symbols, icon-font glyph PNGs (under icons/glyphs/)
 ├─ images/         # raster images and larger SVGs
 └─ fonts/          # woff2 / woff / ttf / otf
 ```
 
-Assets blocked by CORS never break the export; they're listed in `manifest.unfetchable` with a reason.
+Assets blocked by CORS never break the export; they're listed in `manifest.unfetchable` with a reason. If JSZip cannot load, export falls back to a `manifest.json` Blob instead of a ZIP.
 
 ---
 

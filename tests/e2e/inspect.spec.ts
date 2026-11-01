@@ -69,6 +69,65 @@ test.describe('redline inspect', () => {
     await expect(page).toHaveURL(/#cards/);
   });
 
+  test('push mode keeps right-edge content visible and selectable', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.evaluate(() => {
+      const el = document.createElement('button');
+      el.id = 'right-edge';
+      el.textContent = 'EDGE';
+      el.style.cssText =
+        'position:absolute;right:0;top:180px;width:48px;height:48px;background:#e11;color:#fff;z-index:5;border:0;';
+      document.body.appendChild(el);
+      (window as any).__redline.toggle(true);
+    });
+    await page.waitForTimeout(220);
+
+    const layout = await page.evaluate(() => {
+      const html = document.documentElement;
+      const body = document.body;
+      const edge = document.getElementById('right-edge')!;
+      const r = edge.getBoundingClientRect();
+      const panelLeft = window.innerWidth - 320;
+      return {
+        marginRight: html.style.marginRight,
+        bodyWidth: body.style.width,
+        bodyPosition: body.style.position,
+        edgeRight: r.right,
+        edgeLeft: r.left,
+        innerWidth: window.innerWidth,
+        panelLeft,
+        clearOfPanel: r.right <= panelLeft + 1,
+      };
+    });
+    expect(layout.marginRight).toBe('320px');
+    expect(layout.bodyWidth).toContain('320');
+    expect(layout.bodyPosition).toBe('relative');
+    expect(layout.clearOfPanel).toBe(true);
+    expect(layout.edgeRight).toBeLessThanOrEqual(layout.panelLeft + 1);
+
+    const box = await page.locator('#right-edge').boundingBox();
+    expect(box).toBeTruthy();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.waitForTimeout(80);
+    const selected = await page.evaluate(() => {
+      const shadow = (window as any).__redline.__shadow as ShadowRoot;
+      return shadow.textContent || '';
+    });
+    expect(selected).toMatch(/button#right-edge|right-edge/);
+
+    await page.evaluate(() => (window as any).__redline.toggle(false));
+    await page.waitForTimeout(220);
+    const restored = await page.evaluate(() => ({
+      marginRight: document.documentElement.style.marginRight,
+      bodyWidth: document.body.style.width,
+      bodyPosition: document.body.style.position,
+    }));
+    expect(restored.marginRight).toBe('');
+    expect(restored.bodyWidth).toBe('');
+    expect(restored.bodyPosition).toBe('');
+  });
+
   test('closed panel is not visible and does not intercept clicks', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');

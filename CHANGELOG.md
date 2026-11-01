@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Closed side panel no longer paints a translucent ghost (author `display:flex` was overriding `[hidden]`)
 - Comments list updates immediately after Add; hover no longer rebuilds the panel and wipes the draft
 - Comment pins render whenever the panel is open; keyboard input in the panel is not stolen by Inspect shortcuts
+- Panel/FAB inherit Cursor theme tokens from `:host` (they sit outside `.rl-root`)
+
+### Added
+
+- `panelMode: 'push' | 'overlay'` (default `push`) — docks the panel by shifting `html` margin so the page’s right edge stays inspectable
 
 ### Changed
 

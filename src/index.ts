@@ -12,6 +12,7 @@ import { mountRoot, showCheatSheet } from './ui/root';
 import { createOverlay } from './ui/overlay';
 import { createFab } from './ui/fab';
 import { createPanel, type PanelTab } from './ui/panel';
+import { createPagePush } from './ui/push';
 import { showToast } from './ui/toast';
 import {
   addComment,
@@ -103,6 +104,27 @@ export function init(config?: RedlineConfig): RedlineInstance {
     fab?.sync();
   });
 
+  const pagePush = createPagePush(() => paintOverlay());
+
+  const syncPush = (): void => {
+    if (cfg.panelMode !== 'push') {
+      if (pagePush.isActive()) pagePush.clear(true);
+      return;
+    }
+    if (!store.get().panelOpen) {
+      if (pagePush.isActive()) pagePush.clear();
+      return;
+    }
+    const rect = panel.el.getBoundingClientRect();
+    const mobile = window.matchMedia('(max-width: 639px)').matches;
+    if (mobile) {
+      pagePush.apply('bottom', Math.round(rect.height) || Math.round(window.innerHeight * 0.45));
+    } else {
+      const side = cfg.panelSide === 'left' ? 'left' : 'right';
+      pagePush.apply(side, Math.round(rect.width) || 320);
+    }
+  };
+
   const paintPanel = (): void => {
     const s = store.get();
     const spec = s.selected ? buildElementSpec(s.selected, tokens, cfg.remBase) : null;
@@ -112,6 +134,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   const renderAll = (): void => {
     paintOverlay();
     paintPanel();
+    syncPush();
   };
 
   const panelOpts = () => {
@@ -174,12 +197,14 @@ export function init(config?: RedlineConfig): RedlineInstance {
         showToast(root.shadow, 'Comment added');
         paintOverlay();
         paintPanel();
+        syncPush();
       },
       onDeleteComment: (id: string) => {
         comments = removeComment(id, comments);
         comments = loadComments();
         paintOverlay();
         paintPanel();
+        syncPush();
       },
       onSelectComment: (comment: RedlineComment) => {
         const el = resolveCommentElement(comment);
@@ -232,7 +257,8 @@ export function init(config?: RedlineConfig): RedlineInstance {
     if (!el) return;
     const ro = new ResizeObserver(() => {
       paintOverlay();
-      paintPanel();
+      // Don't rebuild Comments (or any) panel DOM on geometry ticks — that wiped drafts.
+      if (panelTab === 'inspect') paintPanel();
     });
     ro.observe(el);
     observers.push(ro);
@@ -243,7 +269,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
         renderAll();
       } else {
         paintOverlay();
-        paintPanel();
+        if (panelTab === 'inspect') paintPanel();
       }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
@@ -256,6 +282,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   const onViewportResize = rafThrottle(() => {
     paintOverlay();
     paintPanel();
+    syncPush();
   });
   window.addEventListener('scroll', onScrollOrResize, true);
   window.addEventListener('resize', onViewportResize);
@@ -393,6 +420,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
     onScrollOrResize.cancel();
     onViewportResize.cancel();
     paintOverlay.cancel();
+    pagePush.destroy();
     observers.forEach((o) => o.disconnect());
     clearForcedStates();
     setPauseAnimations(false);

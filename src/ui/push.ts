@@ -7,69 +7,133 @@ export interface PagePush {
   isActive(): boolean;
 }
 
-interface Saved {
+interface ElSaved {
   marginRight: string;
   marginLeft: string;
   marginBottom: string;
+  width: string;
+  maxWidth: string;
+  boxSizing: string;
+  position: string;
   transition: string;
-  /** Whether each margin had an inline value before we touched it */
   hadRight: boolean;
   hadLeft: boolean;
   hadBottom: boolean;
+  hadWidth: boolean;
+  hadMaxWidth: boolean;
+  hadBoxSizing: boolean;
+  hadPosition: boolean;
   hadTransition: boolean;
 }
 
-const TRANSITION = 'margin-right 160ms ease, margin-left 160ms ease, margin-bottom 160ms ease';
+interface Saved {
+  html: ElSaved;
+  body: ElSaved;
+}
+
+const TRANSITION =
+  'margin-right 160ms ease, margin-left 160ms ease, margin-bottom 160ms ease, width 160ms ease, max-width 160ms ease';
+
+function snapEl(el: HTMLElement): ElSaved {
+  const g = (p: string) => el.style.getPropertyValue(p) !== '';
+  return {
+    marginRight: el.style.marginRight,
+    marginLeft: el.style.marginLeft,
+    marginBottom: el.style.marginBottom,
+    width: el.style.width,
+    maxWidth: el.style.maxWidth,
+    boxSizing: el.style.boxSizing,
+    position: el.style.position,
+    transition: el.style.transition,
+    hadRight: g('margin-right'),
+    hadLeft: g('margin-left'),
+    hadBottom: g('margin-bottom'),
+    hadWidth: g('width'),
+    hadMaxWidth: g('max-width'),
+    hadBoxSizing: g('box-sizing'),
+    hadPosition: g('position'),
+    hadTransition: g('transition'),
+  };
+}
+
+function restoreProp(el: HTMLElement, prop: string, had: boolean, value: string): void {
+  if (had) el.style.setProperty(prop, value);
+  else el.style.removeProperty(prop);
+}
+
+function restoreEl(el: HTMLElement, s: ElSaved): void {
+  restoreProp(el, 'margin-right', s.hadRight, s.marginRight);
+  restoreProp(el, 'margin-left', s.hadLeft, s.marginLeft);
+  restoreProp(el, 'margin-bottom', s.hadBottom, s.marginBottom);
+  restoreProp(el, 'width', s.hadWidth, s.width);
+  restoreProp(el, 'max-width', s.hadMaxWidth, s.maxWidth);
+  restoreProp(el, 'box-sizing', s.hadBoxSizing, s.boxSizing);
+  restoreProp(el, 'position', s.hadPosition, s.position);
+  restoreProp(el, 'transition', s.hadTransition, s.transition);
+}
 
 /**
  * Shrinks the host page so a docked panel doesn't cover content.
- * Saves and restores exact prior inline styles on html.
+ * - <html> gets margin on the docked side (gutter for the panel)
+ * - <body> becomes a positioned containing block with shrunk width so
+ *   absolute (and most in-flow) right/left-aligned children move with content
+ * Fixed redline UI stays viewport-docked (no transform on <html>).
  */
 export function createPagePush(onSettled?: () => void): PagePush {
   let saved: Saved | null = null;
   let active = false;
   let timer = 0;
-
-  const html = () => document.documentElement;
-
-  function snapshot(): Saved {
-    const el = html();
-    return {
-      marginRight: el.style.marginRight,
-      marginLeft: el.style.marginLeft,
-      marginBottom: el.style.marginBottom,
-      transition: el.style.transition,
-      hadRight: el.style.getPropertyValue('margin-right') !== '',
-      hadLeft: el.style.getPropertyValue('margin-left') !== '',
-      hadBottom: el.style.getPropertyValue('margin-bottom') !== '',
-      hadTransition: el.style.getPropertyValue('transition') !== '',
-    };
-  }
-
-  function restoreExact(s: Saved): void {
-    const el = html();
-    if (s.hadRight) el.style.marginRight = s.marginRight;
-    else el.style.removeProperty('margin-right');
-    if (s.hadLeft) el.style.marginLeft = s.marginLeft;
-    else el.style.removeProperty('margin-left');
-    if (s.hadBottom) el.style.marginBottom = s.marginBottom;
-    else el.style.removeProperty('margin-bottom');
-    if (s.hadTransition) el.style.transition = s.transition;
-    else el.style.removeProperty('transition');
-  }
+  let lastSide: PushSide | null = null;
+  let lastPx = 0;
 
   function apply(side: PushSide, px: number): void {
-    const el = html();
-    if (!saved) saved = snapshot();
+    const amount = Math.max(0, Math.round(px));
+    if (active && lastSide === side && lastPx === amount) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    if (!saved) saved = { html: snapEl(html), body: snapEl(body) };
     active = true;
-    el.style.transition = TRANSITION;
-    // Clear other sides we might have set previously in this session
-    el.style.marginRight = side === 'right' ? `${Math.max(0, px)}px` : saved.hadRight ? saved.marginRight : '';
-    el.style.marginLeft = side === 'left' ? `${Math.max(0, px)}px` : saved.hadLeft ? saved.marginLeft : '';
-    el.style.marginBottom = side === 'bottom' ? `${Math.max(0, px)}px` : saved.hadBottom ? saved.marginBottom : '';
-    if (side !== 'right' && !saved.hadRight) el.style.removeProperty('margin-right');
-    if (side !== 'left' && !saved.hadLeft) el.style.removeProperty('margin-left');
-    if (side !== 'bottom' && !saved.hadBottom) el.style.removeProperty('margin-bottom');
+    lastSide = side;
+    lastPx = amount;
+
+    html.style.transition = TRANSITION;
+    body.style.transition = TRANSITION;
+    body.style.boxSizing = 'border-box';
+    body.style.position = 'relative';
+
+    // Clear unused margins on html
+    for (const [s, prop] of [
+      ['right', 'margin-right'],
+      ['left', 'margin-left'],
+      ['bottom', 'margin-bottom'],
+    ] as const) {
+      if (side !== s) {
+        const key = s === 'right' ? 'hadRight' : s === 'left' ? 'hadLeft' : 'hadBottom';
+        const val =
+          s === 'right' ? saved.html.marginRight : s === 'left' ? saved.html.marginLeft : saved.html.marginBottom;
+        if (saved.html[key]) html.style.setProperty(prop, val);
+        else html.style.removeProperty(prop);
+      }
+    }
+
+    if (side === 'bottom') {
+      html.style.marginBottom = `${amount}px`;
+      if (!saved.body.hadWidth) body.style.removeProperty('width');
+      if (!saved.body.hadMaxWidth) body.style.removeProperty('max-width');
+    } else {
+      html.style.setProperty(side === 'right' ? 'margin-right' : 'margin-left', `${amount}px`);
+      // Shrink body so absolute right/left:0 children clear the panel gutter.
+      body.style.width = `calc(100% - ${amount}px)`;
+      body.style.maxWidth = `calc(100vw - ${amount}px)`;
+      if (side === 'right') {
+        body.style.marginRight = '0px';
+        if (!saved.body.hadLeft) body.style.removeProperty('margin-left');
+      } else {
+        body.style.marginLeft = '0px';
+        if (!saved.body.hadRight) body.style.removeProperty('margin-right');
+      }
+    }
 
     window.clearTimeout(timer);
     timer = window.setTimeout(() => onSettled?.(), 170);
@@ -77,25 +141,33 @@ export function createPagePush(onSettled?: () => void): PagePush {
 
   function clear(immediate = false): void {
     window.clearTimeout(timer);
+    lastSide = null;
+    lastPx = 0;
     if (!saved) {
       active = false;
       return;
     }
-    const el = html();
+    const html = document.documentElement;
+    const body = document.body;
     const snap = saved;
     if (immediate) {
-      restoreExact(snap);
+      restoreEl(html, snap.html);
+      restoreEl(body, snap.body);
       saved = null;
       active = false;
       onSettled?.();
       return;
     }
-    el.style.transition = TRANSITION;
-    el.style.marginRight = snap.hadRight ? snap.marginRight : '0px';
-    el.style.marginLeft = snap.hadLeft ? snap.marginLeft : '0px';
-    el.style.marginBottom = snap.hadBottom ? snap.marginBottom : '0px';
+    html.style.transition = TRANSITION;
+    body.style.transition = TRANSITION;
+    html.style.marginRight = snap.html.hadRight ? snap.html.marginRight : '0px';
+    html.style.marginLeft = snap.html.hadLeft ? snap.html.marginLeft : '0px';
+    html.style.marginBottom = snap.html.hadBottom ? snap.html.marginBottom : '0px';
+    body.style.width = snap.body.hadWidth ? snap.body.width : '';
+    body.style.maxWidth = snap.body.hadMaxWidth ? snap.body.maxWidth : '';
     timer = window.setTimeout(() => {
-      restoreExact(snap);
+      restoreEl(html, snap.html);
+      restoreEl(body, snap.body);
       saved = null;
       active = false;
       onSettled?.();
@@ -104,9 +176,14 @@ export function createPagePush(onSettled?: () => void): PagePush {
 
   function destroy(): void {
     window.clearTimeout(timer);
-    if (saved) restoreExact(saved);
+    if (saved) {
+      restoreEl(document.documentElement, saved.html);
+      restoreEl(document.body, saved.body);
+    }
     saved = null;
     active = false;
+    lastSide = null;
+    lastPx = 0;
   }
 
   return {

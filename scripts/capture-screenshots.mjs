@@ -1,6 +1,6 @@
 /**
  * Capture demo UI screenshots into /opt/cursor/artifacts/
- * Usage: node scripts/capture-screenshots.mjs  (expects vite preview/dev on REDLINE_DEMO_URL)
+ * Usage: REDLINE_DEMO_URL=http://127.0.0.1:5173 node scripts/capture-screenshots.mjs
  */
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
@@ -26,14 +26,14 @@ await page.waitForTimeout(250);
 await page.screenshot({ path: `${OUT}/01-fab-only.png`, fullPage: false });
 console.log('wrote', `${OUT}/01-fab-only.png`);
 
-// Open + select CTA
+// Open + select CTA (push mode shifts the page)
 await page.evaluate(() => {
   window.__redline.toggle(true);
   window.__redline.select('#cta');
 });
-await page.waitForTimeout(250);
+await page.waitForTimeout(280);
 
-// (2) Inspect tab with measurements
+// (2) Inspect tab with measurements + pushed page
 await page.screenshot({ path: `${OUT}/02-inspect-selected.png`, fullPage: false });
 console.log('wrote', `${OUT}/02-inspect-selected.png`);
 
@@ -50,7 +50,7 @@ await page.evaluate(() => {
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   shadow.querySelector('button.rl-primary').click();
 });
-await page.waitForTimeout(250);
+await page.waitForTimeout(280);
 await page.screenshot({ path: `${OUT}/03-comments-listed.png`, fullPage: false });
 console.log('wrote', `${OUT}/03-comments-listed.png`);
 
@@ -62,6 +62,16 @@ await page.evaluate(() => {
 await page.waitForTimeout(150);
 await page.screenshot({ path: `${OUT}/04-export-dropdown.png`, fullPage: false });
 console.log('wrote', `${OUT}/04-export-dropdown.png`);
+
+const theme = await page.evaluate(() => {
+  const panel = window.__redline.__shadow.querySelector('.rl-panel');
+  return {
+    hostTheme: document.querySelector('redline-root')?.dataset.theme,
+    bg: getComputedStyle(panel).backgroundColor,
+    marginRight: document.documentElement.style.marginRight,
+  };
+});
+console.log('verify', theme);
 
 await browser.close();
 console.log('done');
