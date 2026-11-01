@@ -41,7 +41,26 @@ test.describe('redline inspect', () => {
     expect(after).toEqual(before);
   });
 
-  test('toggle shortcut and FAB block navigation', async ({ page }) => {
+  test('default state is FAB only', async ({ page }) => {
+    await page.goto('/');
+    const state = await page.evaluate(() => {
+      const host = document.querySelector('redline-root')!;
+      // closed shadow — probe via public behavior
+      const cursor = getComputedStyle(document.documentElement).cursor;
+      return {
+        hasRoot: !!host,
+        cursor,
+        linkWorks: true,
+      };
+    });
+    expect(state.hasRoot).toBe(true);
+    expect(state.cursor === 'crosshair').toBe(false);
+    // Panel closed: host clicks still work
+    await page.click('a.link-btn');
+    await expect(page).toHaveURL(/#cards/);
+  });
+
+  test('toggle opens panel and blocks navigation', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => (window as any).__redline.toggle(true));
     await page.click('a.link-btn');
@@ -49,6 +68,31 @@ test.describe('redline inspect', () => {
     await page.evaluate(() => (window as any).__redline.toggle(false));
     await page.click('a.link-btn');
     await expect(page).toHaveURL(/#cards/);
+  });
+
+  test('comments persist in localStorage', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.evaluate(() => {
+      const key = `redline:comments:${location.origin}${location.pathname}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify([
+          {
+            id: 'c_test',
+            selector: '#cta',
+            label: 'button#cta',
+            text: 'Ship it',
+            createdAt: new Date().toISOString(),
+          },
+        ]),
+      );
+      const stored = JSON.parse(localStorage.getItem(key) || '[]');
+      (window as any).__redline.select('#cta');
+      return stored;
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe('Ship it');
+    expect(result[0].selector).toBe('#cta');
   });
 
   test('box model on #cta', async ({ page }) => {

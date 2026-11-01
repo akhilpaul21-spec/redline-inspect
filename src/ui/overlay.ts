@@ -5,6 +5,8 @@ import { formatLength, formatPx } from '../util/units';
 import { hasNotes } from '../inspect/notes';
 import type { UnitsMode } from '../types';
 import { isCrossOriginIframe } from '../core/hit-test';
+import type { RedlineComment } from '../comments/store';
+import { resolveCommentElement } from '../comments/store';
 
 export interface OverlayState {
   selected: Element | null;
@@ -15,6 +17,7 @@ export interface OverlayState {
   remBase: number | 'auto';
   showNotes: boolean;
   active: boolean;
+  comments?: RedlineComment[];
 }
 
 export function createOverlay(layer: HTMLElement) {
@@ -59,6 +62,24 @@ export function createOverlay(layer: HTMLElement) {
           }),
         );
       });
+    }
+
+    if (state.comments?.length) {
+      const seen = new Set<Element>();
+      for (const c of state.comments) {
+        const el = resolveCommentElement(c);
+        if (!el || seen.has(el)) continue;
+        seen.add(el);
+        const r = el.getBoundingClientRect();
+        if (!r.width && !r.height) continue;
+        notesLayer.appendChild(
+          h('div', {
+            class: 'rl-comment-pin',
+            title: c.text,
+            style: { left: `${r.left - 2}px`, top: `${r.top - 2}px` },
+          }),
+        );
+      }
     }
   }
 

@@ -11,6 +11,18 @@ Designers increasingly hand off live, "vibecoded" HTML prototypes instead of Fig
 - Zero runtime dependencies (JSZip is lazy-loaded only when you export)
 - UI is fully isolated in a closed Shadow DOM, so it never touches your prototype's styles
 
+### How it works
+
+By default you only see a small **ruler button** (bottom-right). Click it (or press `Alt+Shift+R`) to open the side panel and enter Inspect mode:
+
+- **Inspect** — click any element for box model, typography, colors, tokens, layout, forced states, and copyable CSS / Tailwind-ish snippets. Hover overlays and Alt-distance measurements stay on the canvas.
+- **Comments** — add comments on the selected element. The list shows which component each comment belongs to; click one to scroll, select, and highlight it. Pins appear on commented elements while the panel is open. Comments persist in `localStorage` per page URL and are included in Export.
+- **Export** — Assets ZIP, page-spec JSON, or HTML from the panel header.
+
+Close the panel with the ✕ button or the ruler again. Grid lines, units, viewport info, and the shortcut cheat sheet live in the panel header (the old floating top toolbar is gone).
+
+UI text uses an explicit sans-serif system stack inside the shadow root so host page fonts never leak in.
+
 <!-- TODO: demo GIF (select → redlines → Alt distance → export) -->
 
 ---
@@ -69,8 +81,8 @@ All shortcuts are configurable. On macOS they're shown as ⌥⇧.
 
 | Keys | Action |
 |---|---|
-| `Alt+Shift+R` | Toggle Inspect |
-| `Esc` | Clear selection, then exit |
+| `Alt+Shift+R` | Toggle panel / Inspect mode |
+| `Esc` | Clear selection, then close panel |
 | Click | Select element |
 | `Shift+Click` | Pin up to 5 extra elements |
 | Hold `Alt` + hover | Distance to hovered element |
@@ -128,7 +140,7 @@ redline.destroy();                   // restores the original DOM
 
 ### Leave notes with `data-spec*`
 
-Annotate elements directly in your HTML and they'll show up as note cards at the top of the inspect panel:
+Annotate elements directly in your HTML and they'll show up as note cards at the top of the **Inspect** tab:
 
 ```html
 <button
@@ -142,7 +154,7 @@ Annotate elements directly in your HTML and they'll show up as note cards at the
 </button>
 ```
 
-Annotated elements get a badge dot in Inspect mode, and the toolbar's **Notes** list jumps to each one.
+Annotated elements get a badge dot while Inspect is on. For review feedback that isn't baked into the HTML, use the **Comments** tab — those persist in the browser and ship with Export.
 
 ### Use CSS variables for tokens
 

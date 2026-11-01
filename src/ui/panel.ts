@@ -1,10 +1,13 @@
 import { h, clear } from './h';
 import type { ElementSpec, ForceState, PanelSide, UnitsMode } from '../types';
+import type { RedlineComment } from '../comments/store';
 import { formatLength, formatPx } from '../util/units';
 import { copyText } from '../util/clipboard';
 import { showToast } from './toast';
+import { viewportInfo } from '../inspect/breakpoints';
 
 const FORCE_STATES: ForceState[] = ['hover', 'focus', 'focus-visible', 'active', 'disabled', 'checked'];
+export type PanelTab = 'inspect' | 'comments';
 
 export interface PanelApi {
   el: HTMLElement;
@@ -13,47 +16,237 @@ export interface PanelApi {
 }
 
 export interface PanelRenderOpts {
+  open: boolean;
   side: PanelSide;
   units: UnitsMode;
   remBase: number | 'auto';
-  collapsed: boolean;
+  tab: PanelTab;
   forcedStates: Set<ForceState>;
   forceSubtree: boolean;
   showTailwind: boolean;
+  showGridLines: boolean;
+  breakpoints?: Record<string, number>;
+  comments: RedlineComment[];
+  onTab: (tab: PanelTab) => void;
+  onClose: () => void;
   onCrumb: (selector: string) => void;
   onForce: (state: ForceState) => void;
   onForceSubtree: (v: boolean) => void;
-  onCollapse: () => void;
   onCopySelector: () => void;
+  onCycleUnits: () => void;
+  onToggleGrid: () => void;
+  onHelp: () => void;
+  onExportAssets: () => void;
+  onExportJson: () => void;
+  onExportHtml: () => void;
+  onAddComment: (text: string) => void;
+  onDeleteComment: (id: string) => void;
+  onSelectComment: (comment: RedlineComment) => void;
 }
 
 export function createPanel(host: ShadowRoot): PanelApi {
   const el = h('aside', { class: 'rl-panel', hidden: true });
   host.appendChild(el);
   let codeTab: 'css' | 'tw' = 'css';
+  let exportOpen = false;
 
   function render(spec: ElementSpec | null, opts: PanelRenderOpts): void {
-    el.hidden = !spec;
+    el.hidden = !opts.open;
     el.dataset.side = opts.side;
-    el.classList.toggle('collapsed', opts.collapsed);
-    if (!spec) {
+    if (!opts.open) {
       clear(el);
       return;
     }
 
     clear(el);
-    const header = h('div', { class: 'rl-panel-header' });
-    const top = h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } });
-    top.append(
-      h('strong', { text: `${spec.tag}${spec.id ? `#${spec.id}` : ''}` }),
+    el.append(chrome(opts), body(spec, opts));
+  }
+
+  function chrome(opts: PanelRenderOpts): HTMLElement {
+    const wrap = h('div', { class: 'rl-panel-chrome' });
+    const row = h('div', { class: 'rl-chrome-row' });
+
+    const tabs = h('div', { class: 'rl-tabs-main' });
+    tabs.append(
+      tabBtn('Inspect', 'inspect', opts),
+      tabBtn(`Comments${opts.comments.length ? ` ${opts.comments.length}` : ''}`, 'comments', opts),
+    );
+
+    const exportWrap = h('div', { class: 'rl-export-wrap' });
+    const menu = h('div', { class: `rl-export-menu${exportOpen ? ' open' : ''}` });
+    const exportBtn = h('button', {
+      type: 'button',
+      class: 'rl-icon-btn',
+      text: 'Export ▾',
+      on: {
+        click: (e: Event) => {
+          e.stopPropagation();
+          exportOpen = !exportOpen;
+          menu.classList.toggle('open', exportOpen);
+        },
+      },
+    });
+    const mk = (label: string, fn: () => void) =>
       h('button', {
         type: 'button',
-        text: opts.collapsed ? '›' : '‹',
-        title: 'Collapse',
-        on: { click: opts.onCollapse },
+        text: label,
+        on: {
+          click: () => {
+            exportOpen = false;
+            fn();
+          },
+        },
+      });
+    menu.append(
+      mk('Assets ZIP', opts.onExportAssets),
+      mk('Page spec JSON', opts.onExportJson),
+      mk('Page spec HTML', opts.onExportHtml),
+    );
+    exportWrap.append(exportBtn, menu);
+
+    const closeBtn = h('button', {
+      type: 'button',
+      class: 'rl-icon-btn',
+      text: '✕',
+      title: 'Close panel',
+      on: { click: opts.onClose },
+    });
+
+    row.append(tabs, exportWrap, closeBtn);
+    wrap.appendChild(row);
+
+    const info = viewportInfo(opts.breakpoints);
+    const dpr = info.dpr === 1 ? '@1x' : info.dpr === 2 ? '@2x' : `@${info.dpr}x`;
+    const settings = h('div', { class: 'rl-settings' });
+    settings.append(
+      h('button', {
+        type: 'button',
+        class: `rl-icon-btn${opts.showGridLines ? ' active' : ''}`,
+        text: 'Grid',
+        title: 'Toggle grid lines',
+        on: { click: opts.onToggleGrid },
+      }),
+      h('button', {
+        type: 'button',
+        class: 'rl-icon-btn',
+        text: `Units ${opts.units}`,
+        on: { click: opts.onCycleUnits },
+      }),
+      h('span', { class: 'rl-num', text: `${info.width}×${info.height} · ${info.breakpoint} · ${dpr}` }),
+      h('button', {
+        type: 'button',
+        class: 'rl-icon-btn',
+        text: '?',
+        title: 'Shortcuts',
+        on: { click: opts.onHelp },
       }),
     );
-    header.appendChild(top);
+    wrap.appendChild(settings);
+    return wrap;
+  }
+
+  function tabBtn(label: string, tab: PanelTab, opts: PanelRenderOpts): HTMLElement {
+    return h('button', {
+      type: 'button',
+      class: opts.tab === tab ? 'active' : '',
+      text: label,
+      on: {
+        click: () => {
+          exportOpen = false;
+          opts.onTab(tab);
+        },
+      },
+    });
+  }
+
+  function body(spec: ElementSpec | null, opts: PanelRenderOpts): HTMLElement {
+    const bodyEl = h('div', { class: 'rl-panel-body' });
+    if (opts.tab === 'comments') {
+      bodyEl.appendChild(commentsView(spec, opts));
+      return bodyEl;
+    }
+    if (!spec) {
+      bodyEl.appendChild(h('div', { class: 'rl-empty', text: 'Click an element to inspect' }));
+      return bodyEl;
+    }
+    bodyEl.appendChild(inspectView(spec, opts));
+    return bodyEl;
+  }
+
+  function commentsView(spec: ElementSpec | null, opts: PanelRenderOpts): HTMLElement {
+    const wrap = h('div');
+    const form = h('div', { class: 'rl-comment-form' });
+    if (spec) {
+      form.appendChild(
+        h('div', {
+          style: { color: 'var(--rl-fg-muted)' },
+          text: `On ${spec.tag}${spec.id ? `#${spec.id}` : spec.classes[0] ? `.${spec.classes[0]}` : ''}`,
+        }),
+      );
+      const ta = h('textarea', {
+        placeholder: 'Add a comment…',
+      }) as HTMLTextAreaElement;
+      const add = h('button', {
+        type: 'button',
+        class: 'rl-primary',
+        text: 'Add comment',
+        on: {
+          click: () => {
+            const text = ta.value.trim();
+            if (!text) return;
+            opts.onAddComment(text);
+            ta.value = '';
+          },
+        },
+      });
+      form.append(ta, add);
+    } else {
+      form.appendChild(
+        h('div', { class: 'rl-empty', text: 'Select an element to add a comment' }),
+      );
+    }
+    wrap.appendChild(form);
+
+    if (!opts.comments.length) {
+      wrap.appendChild(h('div', { class: 'rl-empty', text: 'No comments yet' }));
+      return wrap;
+    }
+
+    for (const c of [...opts.comments].reverse()) {
+      const item = h('div', {
+        class: 'rl-comment-item',
+        on: {
+          click: () => opts.onSelectComment(c),
+        },
+      });
+      item.appendChild(h('div', { class: 'rl-comment-label', text: c.label }));
+      item.appendChild(h('div', { text: c.text }));
+      const meta = h('div', { class: 'rl-comment-meta' });
+      meta.appendChild(h('span', { class: 'rl-mono', text: c.selector }));
+      meta.appendChild(
+        h('button', {
+          type: 'button',
+          class: 'rl-comment-delete',
+          text: 'Delete',
+          on: {
+            click: (e: Event) => {
+              e.stopPropagation();
+              opts.onDeleteComment(c.id);
+            },
+          },
+        }),
+      );
+      item.appendChild(meta);
+      wrap.appendChild(item);
+    }
+    return wrap;
+  }
+
+  function inspectView(spec: ElementSpec, opts: PanelRenderOpts): DocumentFragment {
+    const frag = document.createDocumentFragment();
+
+    const header = h('div', { style: { marginBottom: '8px' } });
+    header.appendChild(h('strong', { text: `${spec.tag}${spec.id ? `#${spec.id}` : ''}` }));
 
     const crumbs = h('div', { class: 'rl-crumbs' });
     spec.breadcrumb.forEach((c, i) => {
@@ -92,7 +285,8 @@ export function createPanel(host: ShadowRoot): PanelApi {
       h('button', {
         type: 'button',
         text: 'Copy selector',
-        style: { alignSelf: 'start', border: '1px solid var(--rl-border)', borderRadius: '4px', padding: '2px 8px' },
+        class: 'rl-icon-btn',
+        style: { marginTop: '6px' },
         on: {
           click: async () => {
             await copyText(spec.selector);
@@ -102,10 +296,8 @@ export function createPanel(host: ShadowRoot): PanelApi {
         },
       }),
     );
+    frag.appendChild(header);
 
-    const body = h('div', { class: 'rl-panel-body' });
-
-    // Notes
     if (spec.notes.spec || spec.notes.state || spec.notes.behavior || spec.notes.a11y || spec.notes.link) {
       const note = h('div', { class: 'rl-note' });
       if (spec.notes.spec) note.appendChild(h('div', { text: spec.notes.spec }));
@@ -123,20 +315,17 @@ export function createPanel(host: ShadowRoot): PanelApi {
           }),
         );
       }
-      body.appendChild(note);
+      frag.appendChild(note);
     }
 
-    body.appendChild(
+    frag.appendChild(
       section('Size and box', [
         row('W × H', `${formatPx(spec.rect.width)} × ${formatPx(spec.rect.height)}`),
         row('Page x/y', `${spec.rect.pageX}, ${spec.rect.pageY}`),
         row('box-sizing', spec.box.boxSizing),
         row('padding', sides(spec.box.padding, opts.units, opts.remBase)),
         row('margin', sides(spec.box.margin, opts.units, opts.remBase)),
-        row(
-          'border',
-          `${sides(spec.box.border, 'px', opts.remBase)}`,
-        ),
+        row('border', sides(spec.box.border, 'px', opts.remBase)),
         ...(spec.effects.transformed
           ? [
               row('transformed', `scale ${spec.effects.scaleFactor?.toFixed(2)}`),
@@ -151,7 +340,7 @@ export function createPanel(host: ShadowRoot): PanelApi {
 
     if (spec.typography) {
       const t = spec.typography;
-      body.appendChild(
+      frag.appendChild(
         section('Typography', [
           row('family', t.fontFamily),
           row('rendered', t.renderedFont ?? '—'),
@@ -169,9 +358,9 @@ export function createPanel(host: ShadowRoot): PanelApi {
     const colorRows = Object.entries(spec.colors)
       .filter(([, v]) => v && v.alpha > 0)
       .map(([k, v]) => colorRow(k, v!));
-    if (colorRows.length) body.appendChild(section('Colors', colorRows));
+    if (colorRows.length) frag.appendChild(section('Colors', colorRows));
 
-    body.appendChild(
+    frag.appendChild(
       section('Effects', [
         row('radius', withToken(spec.effects.borderRadius, spec.tokens['border-radius'])),
         row('shadow', withToken(spec.effects.boxShadow.join(', ') || 'none', spec.tokens['box-shadow'])),
@@ -207,9 +396,8 @@ export function createPanel(host: ShadowRoot): PanelApi {
     if (spec.layout.childSpacing?.length) {
       layoutRows.push(row('child spacing', spec.layout.childSpacing.map((n) => `${n}px`).join(', ')));
     }
-    body.appendChild(section('Layout', layoutRows));
+    frag.appendChild(section('Layout', layoutRows));
 
-    // States
     const chips = h('div', { class: 'rl-chips' });
     for (const s of FORCE_STATES) {
       chips.appendChild(
@@ -229,22 +417,23 @@ export function createPanel(host: ShadowRoot): PanelApi {
     cb.checked = opts.forceSubtree;
     cb.addEventListener('change', () => opts.onForceSubtree(cb.checked));
     subtree.append(cb, document.createTextNode('Apply to subtree'));
-    body.appendChild(section('States', [chips, subtree]));
+    frag.appendChild(section('States', [chips, subtree]));
 
-    // Code
     const tabs = h('div', { class: 'rl-tabs' });
-    const cssBtn = h('button', {
-      type: 'button',
-      class: codeTab === 'css' ? 'active' : '',
-      text: 'CSS',
-      on: {
-        click: () => {
-          codeTab = 'css';
-          render(spec, opts);
+    tabs.appendChild(
+      h('button', {
+        type: 'button',
+        class: codeTab === 'css' ? 'active' : '',
+        text: 'CSS',
+        on: {
+          click: () => {
+            codeTab = 'css';
+            // parent re-renders via store; trigger soft refresh by copying opts
+            opts.onTab(opts.tab);
+          },
         },
-      },
-    });
-    tabs.appendChild(cssBtn);
+      }),
+    );
     if (opts.showTailwind) {
       tabs.appendChild(
         h('button', {
@@ -254,18 +443,22 @@ export function createPanel(host: ShadowRoot): PanelApi {
           on: {
             click: () => {
               codeTab = 'tw';
-              render(spec, opts);
+              opts.onTab(opts.tab);
             },
           },
         }),
       );
     }
     const code = codeTab === 'tw' ? spec.tailwindSnippet : spec.cssSnippet;
-    const codeBlock = h('div', { class: 'rl-code', text: code + (codeTab === 'tw' ? '\n/* approximate */' : '') });
+    const codeBlock = h('div', {
+      class: 'rl-code',
+      text: code + (codeTab === 'tw' ? '\n/* approximate */' : ''),
+    });
     const copyBtn = h('button', {
       type: 'button',
       text: 'Copy',
-      style: { marginTop: '6px', border: '1px solid var(--rl-border)', borderRadius: '4px', padding: '2px 8px' },
+      class: 'rl-icon-btn',
+      style: { marginTop: '6px' },
       on: {
         click: async () => {
           await copyText(code);
@@ -273,9 +466,9 @@ export function createPanel(host: ShadowRoot): PanelApi {
         },
       },
     });
-    body.appendChild(section('Code', [tabs, codeBlock, copyBtn]));
+    frag.appendChild(section('Code', [tabs, codeBlock, copyBtn]));
 
-    el.append(header, body);
+    return frag;
   }
 
   return {
@@ -298,22 +491,28 @@ function section(title: string, children: (HTMLElement | Node)[]): HTMLElement {
 
 function row(k: string, v: string): HTMLElement {
   const el = h('div', { class: 'rl-row' });
-  el.append(h('span', { class: 'k', text: k }), h('span', {
-    class: 'v',
-    text: v,
-    title: 'Click to copy',
-    on: {
-      click: async () => {
-        await copyText(v);
+  el.append(
+    h('span', { class: 'k', text: k }),
+    h('span', {
+      class: 'v rl-num',
+      text: v,
+      title: 'Click to copy',
+      on: {
+        click: async () => {
+          await copyText(v);
+        },
       },
-    },
-  }));
+    }),
+  );
   return el;
 }
 
-function colorRow(k: string, c: { hex: string; rgb: string; hsl: string; token?: string; tokenMatch?: string }): HTMLElement {
+function colorRow(
+  k: string,
+  c: { hex: string; rgb: string; hsl: string; token?: string; tokenMatch?: string },
+): HTMLElement {
   const el = h('div', { class: 'rl-row' });
-  const right = h('span', { class: 'v' });
+  const right = h('span', { class: 'v rl-num' });
   right.appendChild(h('span', { class: 'rl-swatch', style: { background: c.hex } }));
   const label = c.token ? `${c.hex} ${c.tokenMatch === 'nearest' ? '≈' : '='} ${c.token}` : c.hex;
   right.appendChild(document.createTextNode(label));
@@ -328,7 +527,9 @@ function sides(
   units: UnitsMode,
   remBase: number | 'auto',
 ): string {
-  return [s.top, s.right, s.bottom, s.left].map((n) => formatLength(n, units === 'both' ? 'px' : units, remBase)).join(' / ');
+  return [s.top, s.right, s.bottom, s.left]
+    .map((n) => formatLength(n, units === 'both' ? 'px' : units, remBase))
+    .join(' / ');
 }
 
 function withToken(value: string, token?: string): string {

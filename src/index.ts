@@ -11,9 +11,15 @@ import { buildPageReport } from './report/page-report';
 import { mountRoot, showCheatSheet } from './ui/root';
 import { createOverlay } from './ui/overlay';
 import { createFab } from './ui/fab';
-import { createPanel } from './ui/panel';
-import { createToolbar } from './ui/toolbar';
+import { createPanel, type PanelTab } from './ui/panel';
 import { showToast } from './ui/toast';
+import {
+  addComment,
+  loadComments,
+  removeComment,
+  resolveCommentElement,
+  type RedlineComment,
+} from './comments/store';
 import type { ForceState, RedlineConfig, RedlineInstance, TokenMaps, UnitsMode } from './types';
 
 export type { RedlineConfig, RedlineInstance, ElementSpec } from './types';
@@ -45,12 +51,18 @@ export function init(config?: RedlineConfig): RedlineInstance {
     return noop;
   }
 
+  const startOpen = !!(cfg.startActive || loadActive());
   const store = createStore({
     units: cfg.units,
-    active: cfg.startActive || loadActive(),
+    active: startOpen,
+    panelOpen: startOpen,
+    panelCollapsed: false,
   });
 
   let tokens: TokenMaps = collectTokens(cfg.tokenPrefixes);
+  let comments: RedlineComment[] = loadComments();
+  let panelTab: PanelTab = 'inspect';
+
   const root = mountRoot(cfg.theme);
   const overlay = createOverlay(root.layer);
   const panel = createPanel(root.shadow);
@@ -58,7 +70,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
     ? createFab(root.shadow, {
         position: cfg.fabPosition,
         onToggle: () => instance.toggle(),
-        isOn: () => store.get().active,
+        isOn: () => store.get().panelOpen || store.get().active,
       })
     : null;
 
@@ -80,34 +92,34 @@ export function init(config?: RedlineConfig): RedlineInstance {
       remBase: cfg.remBase,
       showNotes: s.showNotes,
       active: s.active,
+      comments: s.panelOpen ? comments : [],
     });
     document.documentElement.style.cursor = s.active ? 'crosshair' : '';
     fab?.sync();
-    toolbar.sync({
-      active: s.active,
-      units: s.units,
-      showNotes: s.showNotes,
-      showGridLines: s.showGridLines,
-      breakpoints: cfg.breakpoints,
-    });
-    if (s.selected && s.panelOpen) {
-      const spec = buildElementSpec(s.selected, tokens, cfg.remBase);
-      panel.render(spec, panelOpts());
-    } else {
-      panel.render(null, panelOpts());
-    }
+
+    const spec = s.selected ? buildElementSpec(s.selected, tokens, cfg.remBase) : null;
+    panel.render(spec, panelOpts());
   });
 
   const panelOpts = () => {
     const s = store.get();
     return {
+      open: s.panelOpen,
       side: cfg.panelSide,
       units: s.units,
       remBase: cfg.remBase,
-      collapsed: s.panelCollapsed,
+      tab: panelTab,
       forcedStates: s.forcedStates,
       forceSubtree: s.forceSubtree,
       showTailwind: cfg.tailwind,
+      showGridLines: s.showGridLines,
+      breakpoints: cfg.breakpoints,
+      comments,
+      onTab: (tab: PanelTab) => {
+        panelTab = tab;
+        renderOverlays();
+      },
+      onClose: () => instance.toggle(false),
       onCrumb: (sel: string) => {
         try {
           const el = document.querySelector(sel);
@@ -129,34 +141,41 @@ export function init(config?: RedlineConfig): RedlineInstance {
         if (s.selected) applyForcedStates(s.selected, s.forcedStates, v);
         renderOverlays();
       },
-      onCollapse: () => {
-        store.set({ panelCollapsed: !s.panelCollapsed });
+      onCopySelector: () => showToast(root.shadow, 'Copied'),
+      onCycleUnits: cycleUnits,
+      onToggleGrid: () => {
+        store.set({ showGridLines: !store.get().showGridLines });
         renderOverlays();
       },
-      onCopySelector: () => showToast(root.shadow, 'Copied'),
+      onHelp: () => showCheatSheet(root.shadow, () => {}),
+      onExportAssets: () => void doExportAssets(),
+      onExportJson: () => void doExportReport('json'),
+      onExportHtml: () => void doExportReport('html'),
+      onAddComment: (text: string) => {
+        const el = store.get().selected;
+        if (!el) return;
+        comments = addComment(el, text, comments);
+        panelTab = 'comments';
+        showToast(root.shadow, 'Comment added');
+        renderOverlays();
+      },
+      onDeleteComment: (id: string) => {
+        comments = removeComment(id, comments);
+        renderOverlays();
+      },
+      onSelectComment: (comment: RedlineComment) => {
+        const el = resolveCommentElement(comment);
+        if (!el) {
+          showToast(root.shadow, 'Element not found');
+          return;
+        }
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        instance.select(el);
+        panelTab = 'inspect';
+        renderOverlays();
+      },
     };
   };
-
-  const toolbar = createToolbar(root.shadow, {
-    onExit: () => instance.toggle(false),
-    onNotes: () => {
-      store.set({ showNotes: !store.get().showNotes });
-      renderOverlays();
-    },
-    onGrid: () => {
-      store.set({ showGridLines: !store.get().showGridLines });
-      renderOverlays();
-    },
-    onUnits: () => cycleUnits(),
-    onExportAssets: () => void doExportAssets(),
-    onExportJson: () => void doExportReport('json'),
-    onExportHtml: () => void doExportReport('html'),
-    onHelp: () => showCheatSheet(root.shadow, () => {}),
-    onSelectNote: (el) => {
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      instance.select(el);
-    },
-  });
 
   function cycleUnits(): void {
     const order: UnitsMode[] = ['px', 'rem', 'both'];
@@ -169,7 +188,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   async function doExportAssets(): Promise<Blob> {
     showToast(root.shadow, 'Collecting…', 10_000);
     try {
-      const blob = await exportAssetsZip(cfg, (msg) => showToast(root.shadow, msg, 10_000));
+      const blob = await exportAssetsZip(cfg, (msg) => showToast(root.shadow, msg, 10_000), comments);
       const name =
         cfg.assets.zipName ||
         `${location.hostname || 'page'}-assets.${blob.type.includes('json') ? 'json' : 'zip'}`;
@@ -183,7 +202,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   }
 
   async function doExportReport(format: 'json' | 'html'): Promise<Blob> {
-    const blob = await buildPageReport(format, root.shadow, cfg.remBase);
+    const blob = await buildPageReport(format, root.shadow, cfg.remBase, comments);
     downloadBlob(blob, `page-spec.${format === 'json' ? 'json' : 'html'}`);
     showToast(root.shadow, 'Report ready');
     return blob;
@@ -214,6 +233,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   const detachEvents = attachEvents(store, {
     onToggle: () => instance.toggle(),
     onSelect: (el, pinned) => {
+      if (!store.get().active) return;
       if (pinned) {
         const list = [...store.get().pinned];
         if (!list.includes(el) && list.length < 5) list.push(el);
@@ -260,7 +280,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
       }
     },
     onOpenPanel: () => {
-      store.set({ panelOpen: true, panelCollapsed: false });
+      store.set({ panelOpen: true, active: true });
       renderOverlays();
     },
     onCheatSheet: () => showCheatSheet(root.shadow, () => {}),
@@ -271,6 +291,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
 
   const onPop = () => {
     refreshTokens();
+    comments = loadComments();
     store.set({ selected: null });
     clearForcedStates();
     renderOverlays();
@@ -289,20 +310,34 @@ export function init(config?: RedlineConfig): RedlineInstance {
 
   const instance: RedlineInstance = {
     toggle(force?: boolean) {
-      const next = force ?? !store.get().active;
-      store.set({ active: next });
-      if (!next) {
-        clearForcedStates();
-        store.set({ selected: null, hovered: null });
-      } else {
+      const next = force ?? !store.get().panelOpen;
+      if (next) {
         refreshTokens();
+        comments = loadComments();
+        store.set({ active: true, panelOpen: true });
+      } else {
+        clearForcedStates();
+        store.set({
+          active: false,
+          panelOpen: false,
+          selected: null,
+          hovered: null,
+          pinned: [],
+          forcedStates: new Set(),
+        });
+        watchSelected(null);
       }
       renderOverlays();
     },
     select(el) {
       const node = resolveEl(el);
       clearForcedStates();
-      store.set({ selected: node, forcedStates: new Set(), panelOpen: true, active: true });
+      store.set({
+        selected: node,
+        forcedStates: new Set(),
+        panelOpen: true,
+        active: true,
+      });
       watchSelected(node);
       cfg.onSelect?.(buildElementSpec(node, tokens, cfg.remBase));
       renderOverlays();
@@ -332,13 +367,11 @@ export function init(config?: RedlineConfig): RedlineInstance {
     document.documentElement.style.cursor = '';
     fab?.destroy();
     panel.destroy();
-    toolbar.destroy();
     root.destroy();
     singleton = null;
     destroyInternal = null;
   };
 
-  // Initial paint
   renderOverlays();
   if (store.get().active) refreshTokens();
 

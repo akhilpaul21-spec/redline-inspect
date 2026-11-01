@@ -13,7 +13,8 @@ export function mountRoot(theme: 'dark' | 'light' | 'auto'): RedlineRoot {
   existing?.remove();
 
   const host = document.createElement('redline-root');
-  host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;';
+  host.style.cssText =
+    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;';
   const shadow = host.attachShadow({ mode: 'closed' });
 
   const sheetOk = applyStyles(shadow, styles);

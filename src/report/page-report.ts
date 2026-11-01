@@ -1,4 +1,5 @@
 import type { ElementSpec, TokenMaps } from '../types';
+import type { RedlineComment } from '../comments/store';
 import { buildElementSpec } from '../inspect/spec';
 import { collectTokens } from '../inspect/tokens';
 import { extractBreakpoints } from '../inspect/breakpoints';
@@ -8,6 +9,7 @@ export async function buildPageReport(
   format: 'json' | 'html',
   shadowRoot: ShadowRoot | null,
   remBase: number | 'auto' = 'auto',
+  comments: RedlineComment[] = [],
 ): Promise<Blob> {
   const tokens = collectTokens();
   const nodes: ElementSpec[] = [];
@@ -62,6 +64,7 @@ export async function buildPageReport(
     typeScale,
     colorPalette,
     spacingScale,
+    comments,
     elements: nodes,
   };
 
@@ -91,6 +94,15 @@ ${warning ? `<p><strong>${escapeHtml(warning)}</strong></p>` : ''}
 <ul>${typeScale.map(([k, c]) => `<li>${escapeHtml(k)} — ${c}</li>`).join('')}</ul>
 <h2>Spacing scale</h2>
 <ul>${spacingScale.map(([k, c]) => `<li>${escapeHtml(k)}px — ${c}</li>`).join('')}</ul>
+<h2>Comments</h2>
+<table><thead><tr><th>Component</th><th>Comment</th><th>Selector</th></tr></thead><tbody>
+${comments
+  .map(
+    (c) =>
+      `<tr><td>${escapeHtml(c.label)}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.selector)}</td></tr>`,
+  )
+  .join('') || '<tr><td colspan="3">None</td></tr>'}
+</tbody></table>
 <h2>Notes / components</h2>
 <table><thead><tr><th>Selector</th><th>Notes</th></tr></thead><tbody>
 ${nodes
