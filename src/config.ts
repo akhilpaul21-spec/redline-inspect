@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG: Required<
   showFab: true,
   fabPosition: 'bottom-right',
   panelSide: 'right',
-  theme: 'auto',
+  theme: 'dark',
   units: 'both',
   remBase: 'auto',
   tailwind: true,

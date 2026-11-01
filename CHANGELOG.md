@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-01
+
+### Fixed
+
+- Closed side panel no longer paints a translucent ghost (author `display:flex` was overriding `[hidden]`)
+
+### Changed
+
+- Chrome restyled to match Cursor IDE: near-black surfaces, subtle borders, compact density, underline tabs, ghost buttons, dark rounded FAB
+
 ## [0.2.0] - 2026-11-01
 
 ### Changed
@@ -34,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite plugin (dev-only injection by default), IIFE auto-init, bookmarklet
 - Demo fixture page, Vitest unit tests, Playwright e2e, size-limit CI (≤ 50 KB gzip core)
 
+[0.2.1]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.1
 [0.2.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.0
 [0.1.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.1.0

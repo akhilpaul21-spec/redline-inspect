@@ -1,6 +1,6 @@
 {
   "name": "redline-inspect",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Figma Dev Mode–style inspect, redlines, and asset export for HTML prototypes",
   "license": "MIT",
   "author": "Akhil Paul",

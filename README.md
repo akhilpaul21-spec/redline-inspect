@@ -21,7 +21,7 @@ By default you only see a small **ruler button** (bottom-right). Click it (or pr
 
 Close the panel with the ✕ button or the ruler again. Grid lines, units, viewport info, and the shortcut cheat sheet live in the panel header (the old floating top toolbar is gone).
 
-UI text uses an explicit sans-serif system stack inside the shadow root so host page fonts never leak in.
+UI text uses an explicit sans-serif system stack inside the shadow root so host page fonts never leak in. The chrome is styled like the **Cursor editor**: near-black surfaces (`#181818` / `#1e1e1e`), subtle `#2a2a2a` borders, 6–8px radii, compact 12–13px type, underline tabs, ghost icon buttons, and a restrained accent — with soft shadows only on the floating ruler.
 
 <!-- TODO: demo GIF (select → redlines → Alt distance → export) -->
 
@@ -105,7 +105,7 @@ All shortcuts are configurable. On macOS they're shown as ⌥⇧.
 | `showFab` | `boolean` | `true` | Show the floating toggle button |
 | `fabPosition` | `'bottom-right' \| 'bottom-left' \| 'top-right' \| 'top-left'` | `'bottom-right'` | Button position |
 | `panelSide` | `'right' \| 'left'` | `'right'` | Side panel position |
-| `theme` | `'dark' \| 'light' \| 'auto'` | `'auto'` | UI theme |
+| `theme` | `'dark' \| 'light' \| 'auto'` | `'dark'` | UI theme (Cursor-like dark by default) |
 | `units` | `'px' \| 'rem' \| 'both'` | `'both'` | Units shown in labels and panel |
 | `remBase` | `number \| 'auto'` | `'auto'` | Root font size for rem (auto = computed `html` font-size) |
 | `tailwind` | `boolean` | `true` | Show the Tailwind-ish snippet tab |
