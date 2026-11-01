@@ -189,6 +189,20 @@
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
 }
 
+/* Author `display:flex` must not override HTML [hidden] — that left a ghost panel on load. */
+.rl-panel[hidden],
+.rl-panel.is-closed {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+}
+
 .rl-panel[data-side="left"] {
   right: auto;
   left: 0;

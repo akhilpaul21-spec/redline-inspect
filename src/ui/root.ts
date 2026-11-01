@@ -13,14 +13,16 @@ export function mountRoot(theme: 'dark' | 'light' | 'auto'): RedlineRoot {
   existing?.remove();
 
   const host = document.createElement('redline-root');
+  // Host must not paint a full-viewport surface; children opt into pointer events.
   host.style.cssText =
-    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;';
+    'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483000;background:transparent;border:none;box-shadow:none;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;';
   const shadow = host.attachShadow({ mode: 'closed' });
 
   const sheetOk = applyStyles(shadow, styles);
   void sheetOk;
 
   const root = h('div', { class: 'rl-root' });
+  root.style.cssText = 'background:transparent;pointer-events:none;';
   applyTheme(root, theme);
   const layer = h('div', { class: 'rl-layer' });
   root.appendChild(layer);

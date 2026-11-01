@@ -45,19 +45,38 @@ export interface PanelRenderOpts {
 }
 
 export function createPanel(host: ShadowRoot): PanelApi {
-  const el = h('aside', { class: 'rl-panel', hidden: true });
+  const el = h('aside', {
+    class: 'rl-panel is-closed',
+    hidden: true,
+    'aria-hidden': 'true',
+  });
+  // Inline display:none so closed state never paints, even before CSS loads.
+  el.style.display = 'none';
   host.appendChild(el);
   let codeTab: 'css' | 'tw' = 'css';
   let exportOpen = false;
 
+  function setClosed(closed: boolean): void {
+    el.hidden = closed;
+    el.setAttribute('aria-hidden', closed ? 'true' : 'false');
+    el.classList.toggle('is-closed', closed);
+    el.style.display = closed ? 'none' : 'flex';
+    if (closed) {
+      el.style.pointerEvents = 'none';
+      clear(el);
+    } else {
+      el.style.pointerEvents = 'auto';
+    }
+  }
+
   function render(spec: ElementSpec | null, opts: PanelRenderOpts): void {
-    el.hidden = !opts.open;
     el.dataset.side = opts.side;
     if (!opts.open) {
-      clear(el);
+      setClosed(true);
       return;
     }
 
+    setClosed(false);
     clear(el);
     el.append(chrome(opts), body(spec, opts));
   }

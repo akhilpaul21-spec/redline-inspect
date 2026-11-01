@@ -42,22 +42,51 @@ test.describe('redline inspect', () => {
   });
 
   test('default state is FAB only', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     const state = await page.evaluate(() => {
       const host = document.querySelector('redline-root')!;
-      // closed shadow — probe via public behavior
       const cursor = getComputedStyle(document.documentElement).cursor;
+      // Where a 340px right panel would sit — must hit page content, not redline-root
+      const underPanel = document.elementFromPoint(window.innerWidth - 80, 120);
+      const midRight = document.elementFromPoint(window.innerWidth - 160, 200);
       return {
         hasRoot: !!host,
         cursor,
-        linkWorks: true,
+        underPanelTag: underPanel?.tagName ?? null,
+        midRightTag: midRight?.tagName ?? null,
       };
     });
     expect(state.hasRoot).toBe(true);
     expect(state.cursor === 'crosshair').toBe(false);
-    // Panel closed: host clicks still work
+    expect(state.underPanelTag).not.toBe('REDLINE-ROOT');
+    expect(state.midRightTag).not.toBe('REDLINE-ROOT');
+
+    // Clicks in the would-be panel zone must reach the page (no intercept)
+    await page.mouse.click(1200, 100);
     await page.click('a.link-btn');
     await expect(page).toHaveURL(/#cards/);
+  });
+
+  test('closed panel is not visible and does not intercept clicks', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    // Open then close
+    await page.evaluate(() => {
+      (window as any).__redline.toggle(true);
+      (window as any).__redline.toggle(false);
+    });
+    const afterClose = await page.evaluate(() => {
+      const hit = document.elementFromPoint(window.innerWidth - 80, 140);
+      return {
+        hitTag: hit?.tagName ?? null,
+        cursor: getComputedStyle(document.documentElement).cursor,
+      };
+    });
+    expect(afterClose.hitTag).not.toBe('REDLINE-ROOT');
+    expect(afterClose.cursor === 'crosshair').toBe(false);
+    await page.click('a.brand');
+    await expect(page).toHaveURL(/#top/);
   });
 
   test('toggle opens panel and blocks navigation', async ({ page }) => {
