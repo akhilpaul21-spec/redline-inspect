@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-02
+
+### Added
+
+- Shared comments via Cloudflare Worker + D1 (`worker/`): `GET/POST/PATCH/DELETE /comments` with `X-Redline-Key`
+- Client `sync: { endpoint, project, key }` — remote load, 30s poll while the panel is open, Refresh button, optimistic writes with rollback toasts; `localStorage` stays as cache/offline fallback
+- Display name prompt (persisted as `redline:author`) shown on each comment and editable in the Comments tab
+- Resolve/reopen comments in the panel
+- Deploy docs in README; e2e covering two browser contexts sharing a comment
+
 ## [0.2.2] - 2026-11-02
 
 ### Fixed
@@ -76,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite plugin (dev-only injection by default), IIFE auto-init, bookmarklet
 - Demo fixture page, Vitest unit tests, Playwright e2e, size-limit CI (≤ 50 KB gzip core)
 
+[0.3.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.3.0
 [0.2.2]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.2
 [0.2.1]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.1
 [0.2.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.0

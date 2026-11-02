@@ -27,6 +27,8 @@ export interface PanelRenderOpts {
   showGridLines: boolean;
   breakpoints?: Record<string, number>;
   comments: RedlineComment[];
+  authorName: string | null;
+  syncEnabled: boolean;
   onTab: (tab: PanelTab) => void;
   onClose: () => void;
   onCrumb: (selector: string) => void;
@@ -41,7 +43,10 @@ export interface PanelRenderOpts {
   onExportHtml: () => void;
   onAddComment: (text: string) => void;
   onDeleteComment: (id: string) => void;
+  onResolveComment: (id: string, resolved: boolean) => void;
   onSelectComment: (comment: RedlineComment) => void;
+  onRefreshComments: () => void;
+  onChangeAuthor: () => void;
 }
 
 export function createPanel(host: ShadowRoot): PanelApi {
@@ -194,6 +199,36 @@ export function createPanel(host: ShadowRoot): PanelApi {
 
   function commentsView(spec: ElementSpec | null, opts: PanelRenderOpts): HTMLElement {
     const wrap = h('div');
+
+    const toolbar = h('div', { class: 'rl-comment-toolbar' });
+    toolbar.appendChild(
+      h('span', {
+        class: 'rl-comment-author',
+        text: opts.authorName ? `As ${opts.authorName}` : 'Name not set',
+      }),
+    );
+    const tools = h('div', { class: 'rl-comment-tools' });
+    tools.appendChild(
+      h('button', {
+        type: 'button',
+        class: 'rl-ghost-btn',
+        text: opts.authorName ? 'Change name' : 'Set name',
+        on: { click: () => opts.onChangeAuthor() },
+      }),
+    );
+    if (opts.syncEnabled) {
+      tools.appendChild(
+        h('button', {
+          type: 'button',
+          class: 'rl-ghost-btn',
+          text: 'Refresh',
+          on: { click: () => opts.onRefreshComments() },
+        }),
+      );
+    }
+    toolbar.appendChild(tools);
+    wrap.appendChild(toolbar);
+
     const form = h('div', { class: 'rl-comment-form' });
     if (spec) {
       form.appendChild(
@@ -233,16 +268,33 @@ export function createPanel(host: ShadowRoot): PanelApi {
 
     for (const c of [...opts.comments].reverse()) {
       const item = h('div', {
-        class: 'rl-comment-item',
+        class: `rl-comment-item${c.resolved ? ' is-resolved' : ''}`,
         on: {
           click: () => opts.onSelectComment(c),
         },
       });
       item.appendChild(h('div', { class: 'rl-comment-label', text: c.label }));
+      if (c.author) {
+        item.appendChild(h('div', { class: 'rl-comment-by', text: c.author }));
+      }
       item.appendChild(h('div', { text: c.text }));
       const meta = h('div', { class: 'rl-comment-meta' });
       meta.appendChild(h('span', { class: 'rl-mono', text: c.selector }));
-      meta.appendChild(
+      const actions = h('div', { class: 'rl-comment-actions' });
+      actions.appendChild(
+        h('button', {
+          type: 'button',
+          class: 'rl-ghost-btn',
+          text: c.resolved ? 'Reopen' : 'Resolve',
+          on: {
+            click: (e: Event) => {
+              e.stopPropagation();
+              opts.onResolveComment(c.id, !c.resolved);
+            },
+          },
+        }),
+      );
+      actions.appendChild(
         h('button', {
           type: 'button',
           class: 'rl-comment-delete',
@@ -255,6 +307,7 @@ export function createPanel(host: ShadowRoot): PanelApi {
           },
         }),
       );
+      meta.appendChild(actions);
       item.appendChild(meta);
       wrap.appendChild(item);
     }

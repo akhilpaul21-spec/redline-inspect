@@ -1,0 +1,18 @@
+name = "redline-comments"
+main = "src/index.ts"
+compatibility_date = "2025-09-06"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[observability.traces]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "redline-comments"
+# Replace after: npx wrangler d1 create redline-comments
+database_id = "a6827af7-a800-493e-b074-76347e82f455"
+preview_database_id = "local-redline-comments"
+migrations_dir = "migrations"
