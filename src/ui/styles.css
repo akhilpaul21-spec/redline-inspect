@@ -270,6 +270,17 @@
   flex-direction: column;
   gap: 6px;
   background: var(--rl-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+.rl-panel-chrome,
+.rl-panel-chrome *,
+.rl-tabs-main button,
+.rl-settings,
+.rl-settings * {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+.rl-panel-chrome .rl-num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
 }
 
 .rl-chrome-row {
