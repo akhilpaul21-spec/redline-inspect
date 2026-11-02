@@ -88,21 +88,24 @@ test.describe('redline inspect', () => {
       const body = document.body;
       const edge = document.getElementById('right-edge')!;
       const r = edge.getBoundingClientRect();
+      const br = body.getBoundingClientRect();
       const panelLeft = window.innerWidth - 320;
       return {
-        marginRight: html.style.marginRight,
-        bodyWidth: body.style.width,
-        bodyPosition: body.style.position,
+        rlPush: html.dataset.rlPush || '',
+        pushVar: html.style.getPropertyValue('--rl-push').trim(),
+        htmlWidth: parseFloat(getComputedStyle(html).width),
+        bodyRight: br.right,
+        bodyGap: panelLeft - br.right,
         edgeRight: r.right,
-        edgeLeft: r.left,
         innerWidth: window.innerWidth,
         panelLeft,
         clearOfPanel: r.right <= panelLeft + 1,
       };
     });
-    expect(layout.marginRight).toBe('320px');
-    expect(layout.bodyWidth).toContain('320');
-    expect(layout.bodyPosition).toBe('relative');
+    expect(layout.rlPush).toBe('right');
+    expect(layout.pushVar).toBe('320px');
+    expect(layout.htmlWidth).toBeCloseTo(layout.innerWidth - 320, 0);
+    expect(Math.abs(layout.bodyGap)).toBeLessThanOrEqual(2);
     expect(layout.clearOfPanel).toBe(true);
     expect(layout.edgeRight).toBeLessThanOrEqual(layout.panelLeft + 1);
 
@@ -119,13 +122,13 @@ test.describe('redline inspect', () => {
     await page.evaluate(() => (window as any).__redline.toggle(false));
     await page.waitForTimeout(220);
     const restored = await page.evaluate(() => ({
-      marginRight: document.documentElement.style.marginRight,
-      bodyWidth: document.body.style.width,
-      bodyPosition: document.body.style.position,
+      rlPush: document.documentElement.dataset.rlPush || '',
+      pushVar: document.documentElement.style.getPropertyValue('--rl-push'),
+      styleTag: !!document.getElementById('redline-push-style'),
     }));
-    expect(restored.marginRight).toBe('');
-    expect(restored.bodyWidth).toBe('');
-    expect(restored.bodyPosition).toBe('');
+    expect(restored.rlPush).toBe('');
+    expect(restored.pushVar).toBe('');
+    expect(restored.styleTag).toBe(false);
   });
 
   test('closed panel is not visible and does not intercept clicks', async ({ page }) => {

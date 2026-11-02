@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `panelMode: 'push' | 'overlay'` (default `push`) — docks the panel by shifting `html` margin so the page’s right edge stays inspectable
+- `panelMode: 'push' | 'overlay'` (default `push`) — docks the panel by shrinking `html` once to `calc(100vw - panelWidth)` so the page’s right edge stays inspectable
+
+### Fixed
+
+- Push mode no longer double-shrinks the page (html margin + body width) which left a blank white strip beside the panel
 
 ### Changed
 
