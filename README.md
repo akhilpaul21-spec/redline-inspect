@@ -271,7 +271,7 @@ import { init } from 'redline-inspect';
 
 init({
   sync: {
-    endpoint: 'https://redline-comments.<account>.workers.dev',
+    endpoint: 'https://redline-comments.akhilpaul21.workers.dev',
     project: 'myna',
     key: '<YOUR_KEY>',
   },
@@ -284,7 +284,7 @@ Or via the IIFE / Vite inject:
 <script>
   window.REDLINE_CONFIG = {
     sync: {
-      endpoint: 'https://redline-comments.<account>.workers.dev',
+      endpoint: 'https://redline-comments.akhilpaul21.workers.dev',
       project: 'myna',
       key: '<YOUR_KEY>',
     },

@@ -13,6 +13,6 @@ enabled = true
 binding = "DB"
 database_name = "redline-comments"
 # Replace after: npx wrangler d1 create redline-comments
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "a6827af7-a800-493e-b074-76347e82f455"
 preview_database_id = "local-redline-comments"
 migrations_dir = "migrations"
