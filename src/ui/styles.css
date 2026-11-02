@@ -20,10 +20,11 @@
   --rl-danger: #e06c75;
   --rl-radius: 7px;
   --rl-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --rl-content: rgba(111, 168, 220, 0.55);
-  --rl-padding: rgba(147, 196, 125, 0.55);
-  --rl-border-box: rgba(255, 229, 153, 0.6);
-  --rl-margin: rgba(246, 178, 107, 0.5);
+  /* Box-model fills stay translucent so labels under them remain readable */
+  --rl-content: rgba(111, 168, 220, 0.4);
+  --rl-padding: rgba(147, 196, 125, 0.4);
+  --rl-border-box: rgba(255, 229, 153, 0.4);
+  --rl-margin: rgba(246, 178, 107, 0.4);
   --rl-redline: #ef4444;
   --rl-z: 2147483000;
   --rl-panel-width: 320px;

@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Push mode no longer double-shrinks the page (html margin + body width) which left a blank white strip beside the panel
+- Box-model overlay fills use ~0.4 alpha so text under them stays readable; outlines, redlines, and labels stay opaque
 
 ### Changed
 
