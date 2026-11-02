@@ -188,6 +188,9 @@ test.describe('redline inspect', () => {
   });
 
   test('add comment via UI lists it, pins it, and survives reload', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.prompt = () => 'Tester';
+    });
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
     await page.reload();

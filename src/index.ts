@@ -15,12 +15,21 @@ import { createPanel, type PanelTab } from './ui/panel';
 import { createPagePush } from './ui/push';
 import { showToast } from './ui/toast';
 import {
-  addComment,
   loadComments,
+  makeComment,
   removeComment,
   resolveCommentElement,
+  saveComments,
+  updateComment,
   type RedlineComment,
 } from './comments/store';
+import { ensureAuthorName, getAuthorName } from './comments/identity';
+import {
+  createRemoteComment,
+  deleteRemoteComment,
+  fetchRemoteComments,
+  patchRemoteComment,
+} from './comments/sync';
 import type { ForceState, RedlineConfig, RedlineInstance, TokenMaps, UnitsMode } from './types';
 
 export type { RedlineConfig, RedlineInstance, ElementSpec } from './types';
@@ -63,6 +72,11 @@ export function init(config?: RedlineConfig): RedlineInstance {
   let tokens: TokenMaps = collectTokens(cfg.tokenPrefixes);
   let comments: RedlineComment[] = loadComments();
   let panelTab: PanelTab = 'inspect';
+  let authorName = getAuthorName();
+  let syncPoll: number | null = null;
+  let syncInFlight: Promise<void> | null = null;
+  const syncCfg =
+    cfg.sync?.endpoint && cfg.sync.project && cfg.sync.key ? cfg.sync : undefined;
 
   const root = mountRoot(cfg.theme);
   const overlay = createOverlay(root.layer);
@@ -137,6 +151,44 @@ export function init(config?: RedlineConfig): RedlineInstance {
     syncPush();
   };
 
+  const stopSyncPoll = (): void => {
+    if (syncPoll != null) {
+      window.clearInterval(syncPoll);
+      syncPoll = null;
+    }
+  };
+
+  const pullRemoteComments = async (opts: { silent?: boolean } = {}): Promise<void> => {
+    if (!syncCfg) return;
+    if (syncInFlight) return syncInFlight;
+    syncInFlight = (async () => {
+      try {
+        const remote = await fetchRemoteComments(syncCfg);
+        comments = remote;
+        saveComments(comments);
+        paintOverlay();
+        paintPanel();
+        if (!opts.silent) showToast(root.shadow, 'Comments synced');
+      } catch (err) {
+        if (!opts.silent) {
+          const detail = err instanceof Error ? err.message : 'sync failed';
+          showToast(root.shadow, `Sync failed: ${detail}`, 4_000);
+        }
+      } finally {
+        syncInFlight = null;
+      }
+    })();
+    return syncInFlight;
+  };
+
+  const startSyncPoll = (): void => {
+    if (!syncCfg) return;
+    stopSyncPoll();
+    syncPoll = window.setInterval(() => {
+      if (store.get().panelOpen) void pullRemoteComments({ silent: true });
+    }, 30_000);
+  };
+
   const panelOpts = () => {
     const s = store.get();
     return {
@@ -151,8 +203,11 @@ export function init(config?: RedlineConfig): RedlineInstance {
       showGridLines: s.showGridLines,
       breakpoints: cfg.breakpoints,
       comments,
+      authorName,
+      syncEnabled: !!syncCfg,
       onTab: (tab: PanelTab) => {
         panelTab = tab;
+        if (tab === 'comments' && syncCfg) void pullRemoteComments({ silent: true });
         paintPanel();
       },
       onClose: () => instance.toggle(false),
@@ -190,21 +245,65 @@ export function init(config?: RedlineConfig): RedlineInstance {
       onAddComment: (text: string) => {
         const el = store.get().selected;
         if (!el) return;
-        comments = addComment(el, text, comments);
-        // Re-read from storage so list matches what survived persistence.
-        comments = loadComments();
+        const name = ensureAuthorName(false);
+        authorName = getAuthorName();
+        if (!name) {
+          showToast(root.shadow, 'Display name required', 3_000);
+          paintPanel();
+          return;
+        }
+        const comment = makeComment(el, text, name);
+        const previous = comments;
+        comments = [...comments, comment];
+        saveComments(comments);
         panelTab = 'comments';
         showToast(root.shadow, 'Comment added');
         paintOverlay();
         paintPanel();
         syncPush();
+        if (syncCfg) {
+          void createRemoteComment(syncCfg, comment).catch((err) => {
+            comments = previous;
+            saveComments(comments);
+            paintOverlay();
+            paintPanel();
+            const detail = err instanceof Error ? err.message : 'sync failed';
+            showToast(root.shadow, `Sync failed: ${detail}`, 4_000);
+          });
+        }
       },
       onDeleteComment: (id: string) => {
+        const previous = comments;
         comments = removeComment(id, comments);
-        comments = loadComments();
         paintOverlay();
         paintPanel();
         syncPush();
+        if (syncCfg) {
+          void deleteRemoteComment(syncCfg, id).catch((err) => {
+            comments = previous;
+            saveComments(comments);
+            paintOverlay();
+            paintPanel();
+            const detail = err instanceof Error ? err.message : 'sync failed';
+            showToast(root.shadow, `Sync failed: ${detail}`, 4_000);
+          });
+        }
+      },
+      onResolveComment: (id: string, resolved: boolean) => {
+        const previous = comments;
+        comments = updateComment(id, { resolved }, comments);
+        paintOverlay();
+        paintPanel();
+        if (syncCfg) {
+          void patchRemoteComment(syncCfg, id, { resolved }).catch((err) => {
+            comments = previous;
+            saveComments(comments);
+            paintOverlay();
+            paintPanel();
+            const detail = err instanceof Error ? err.message : 'sync failed';
+            showToast(root.shadow, `Sync failed: ${detail}`, 4_000);
+          });
+        }
       },
       onSelectComment: (comment: RedlineComment) => {
         const el = resolveCommentElement(comment);
@@ -216,6 +315,13 @@ export function init(config?: RedlineConfig): RedlineInstance {
         instance.select(el);
         panelTab = 'inspect';
         renderAll();
+      },
+      onRefreshComments: () => {
+        void pullRemoteComments();
+      },
+      onChangeAuthor: () => {
+        authorName = ensureAuthorName(true);
+        paintPanel();
       },
     };
   };
@@ -340,6 +446,8 @@ export function init(config?: RedlineConfig): RedlineInstance {
     },
     onOpenPanel: () => {
       store.set({ panelOpen: true, active: true });
+      startSyncPoll();
+      void pullRemoteComments({ silent: true });
       renderAll();
     },
     onCheatSheet: () => showCheatSheet(root.shadow, () => {}),
@@ -374,7 +482,10 @@ export function init(config?: RedlineConfig): RedlineInstance {
         refreshTokens();
         comments = loadComments();
         store.set({ active: true, panelOpen: true });
+        startSyncPoll();
+        void pullRemoteComments({ silent: true });
       } else {
+        stopSyncPoll();
         clearForcedStates();
         store.set({
           active: false,
@@ -391,12 +502,17 @@ export function init(config?: RedlineConfig): RedlineInstance {
     select(el) {
       const node = resolveEl(el);
       clearForcedStates();
+      const wasOpen = store.get().panelOpen;
       store.set({
         selected: node,
         forcedStates: new Set(),
         panelOpen: true,
         active: true,
       });
+      if (!wasOpen) {
+        startSyncPoll();
+        void pullRemoteComments({ silent: true });
+      }
       watchSelected(node);
       cfg.onSelect?.(buildElementSpec(node, tokens, cfg.remBase));
       renderAll();
@@ -412,6 +528,7 @@ export function init(config?: RedlineConfig): RedlineInstance {
   };
 
   destroyInternal = () => {
+    stopSyncPoll();
     detachEvents();
     unsub();
     window.removeEventListener('scroll', onScrollOrResize, true);
@@ -435,6 +552,10 @@ export function init(config?: RedlineConfig): RedlineInstance {
 
   renderAll();
   if (store.get().active) refreshTokens();
+  if (syncCfg) {
+    void pullRemoteComments({ silent: true });
+    if (store.get().panelOpen) startSyncPoll();
+  }
 
   singleton = instance;
   if (typeof window !== 'undefined') {

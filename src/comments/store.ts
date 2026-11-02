@@ -6,6 +6,18 @@ export interface RedlineComment {
   label: string;
   text: string;
   createdAt: string;
+  author?: string;
+  resolved?: boolean;
+}
+
+/** Normalize to pathname (no origin/hash/search) for sync + local keys. */
+export function pagePath(url = location.href): string {
+  try {
+    const u = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
+    return u.pathname || '/';
+  } catch {
+    return url.split('#')[0]?.split('?')[0] || '/';
+  }
 }
 
 /** Normalize to origin+pathname (no hash/search) so comments survive #anchors. */
@@ -52,14 +64,29 @@ export function elementLabel(el: Element): string {
   return tag;
 }
 
-export function addComment(el: Element, text: string, existing: RedlineComment[]): RedlineComment[] {
-  const comment: RedlineComment = {
+export function makeComment(
+  el: Element,
+  text: string,
+  author?: string,
+): RedlineComment {
+  return {
     id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
     selector: shortestUniqueSelector(el),
     label: elementLabel(el),
     text: text.trim(),
     createdAt: new Date().toISOString(),
+    author: author?.trim() || undefined,
+    resolved: false,
   };
+}
+
+export function addComment(
+  el: Element,
+  text: string,
+  existing: RedlineComment[],
+  author?: string,
+): RedlineComment[] {
+  const comment = makeComment(el, text, author);
   const next = [...existing, comment];
   saveComments(next);
   return next;
@@ -67,6 +94,16 @@ export function addComment(el: Element, text: string, existing: RedlineComment[]
 
 export function removeComment(id: string, existing: RedlineComment[]): RedlineComment[] {
   const next = existing.filter((c) => c.id !== id);
+  saveComments(next);
+  return next;
+}
+
+export function updateComment(
+  id: string,
+  patch: Partial<Pick<RedlineComment, 'text' | 'resolved' | 'author'>>,
+  existing: RedlineComment[],
+): RedlineComment[] {
+  const next = existing.map((c) => (c.id === id ? { ...c, ...patch } : c));
   saveComments(next);
   return next;
 }

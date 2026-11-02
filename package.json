@@ -1,6 +1,6 @@
 {
   "name": "redline-inspect",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Figma Dev Mode–style inspect, redlines, and asset export for HTML prototypes",
   "license": "MIT",
   "author": "Akhil Paul",
@@ -39,6 +39,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:unit": "vitest run",
+    "test:worker": "npm test --prefix worker",
     "test:e2e": "playwright test",
     "size": "size-limit",
     "preview": "vite preview --config vite.demo.config.ts",

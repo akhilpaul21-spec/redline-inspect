@@ -15,6 +15,16 @@ export interface AssetsConfig {
   inlineCurrentColor?: boolean;
 }
 
+/** Shared comments via the Cloudflare Worker (`worker/`). */
+export interface SyncConfig {
+  /** Worker origin, e.g. https://redline-comments.example.workers.dev */
+  endpoint: string;
+  /** Project id from the D1 `projects` table */
+  project: string;
+  /** Per-project API key sent as X-Redline-Key */
+  key: string;
+}
+
 export interface RedlineConfig {
   enabled?: boolean;
   startActive?: boolean;
@@ -32,6 +42,8 @@ export interface RedlineConfig {
   breakpoints?: Record<string, number>;
   ignore?: string[];
   assets?: AssetsConfig;
+  /** When set, comments sync through the Worker API (localStorage remains a cache). */
+  sync?: SyncConfig;
   onSelect?: (info: ElementSpec) => void;
 }
 

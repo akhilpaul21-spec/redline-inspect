@@ -9,12 +9,13 @@ export const DEFAULT_BREAKPOINTS: Record<string, number> = {
 };
 
 export const DEFAULT_CONFIG: Required<
-  Omit<RedlineConfig, 'onSelect' | 'tokenPrefixes' | 'breakpoints' | 'ignore' | 'assets'>
+  Omit<RedlineConfig, 'onSelect' | 'tokenPrefixes' | 'breakpoints' | 'ignore' | 'assets' | 'sync'>
 > & {
   tokenPrefixes: string[] | undefined;
   breakpoints: Record<string, number> | undefined;
   ignore: string[];
   assets: Required<NonNullable<RedlineConfig['assets']>>;
+  sync: RedlineConfig['sync'];
   onSelect: RedlineConfig['onSelect'];
 } = {
   enabled: true,
@@ -40,6 +41,7 @@ export const DEFAULT_CONFIG: Required<
     renderIconGlyphs: true,
     inlineCurrentColor: false,
   },
+  sync: undefined,
   onSelect: undefined,
 };
 
@@ -50,6 +52,7 @@ export function mergeConfig(partial?: RedlineConfig): typeof DEFAULT_CONFIG {
     ...partial,
     ignore: partial?.ignore ?? [],
     assets,
+    sync: partial?.sync,
   };
 }
 

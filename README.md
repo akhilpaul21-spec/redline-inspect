@@ -118,6 +118,7 @@ All shortcuts are configurable. On macOS they're shown as ⌥⇧.
 | `assets.sameOriginOnly` | `boolean` | `false` | Skip cross-origin assets |
 | `assets.jszipUrl` | `string` | unpkg `jszip@3` | JSZip source (IIFE build only) |
 | `assets.zipName` | `string` | `'<hostname>-assets.zip'` | Download filename |
+| `sync` | `{ endpoint, project, key }` | — | Shared comments Worker (see below) |
 | `onSelect` | `(spec: ElementSpec) => void` | — | Called when an element is selected |
 
 ### Instance API
@@ -209,6 +210,91 @@ Toggle `:hover`, `:focus`, `:focus-visible`, `:active`, `:disabled`, and `:check
 ```
 
 Assets that time out (~8s), 404, or are blocked by CORS never break the export; they're listed in `manifest.skipped` (and the legacy `manifest.unfetchable` alias) with a reason. Progress toasts show `Preparing n/m`. If JSZip cannot load, export falls back to a `manifest.json` Blob instead of a ZIP.
+
+---
+
+## Shared comments (Cloudflare Worker)
+
+By default comments stay in `localStorage` on one device. To share them across anyone who opens a Vercel (or other) prototype link, deploy the Worker in `worker/` and pass a `sync` config.
+
+### Deploy the Worker
+
+```bash
+cd worker
+npm install
+npx wrangler login
+
+# Create D1 and paste the binding into wrangler.toml (database_id)
+npx wrangler d1 create redline-comments
+
+# Apply schema
+npx wrangler d1 migrations apply redline-comments --remote
+
+# Optional single-tenant fallback key (or seed projects in D1 — preferred)
+npx wrangler secret put FALLBACK_API_KEY
+
+# Deploy
+npx wrangler deploy
+```
+
+Seed a project + API key (preferred over the fallback secret):
+
+```bash
+# Generate a key
+openssl rand -hex 24
+
+npx wrangler d1 execute redline-comments --remote --command \
+  "INSERT INTO projects (id, name, api_key, created_at)
+   VALUES ('myna', 'Myna prototype', '<YOUR_KEY>', datetime('now'))"
+```
+
+Local smoke test:
+
+```bash
+cd worker
+npx wrangler d1 migrations apply redline-comments --local
+npx wrangler dev
+npm test   # Vitest + @cloudflare/vitest-pool-workers against Miniflare/D1
+```
+
+API (all require `X-Redline-Key`):
+
+- `GET /comments?project=&page=`
+- `POST /comments`
+- `PATCH /comments/:id` (edit text / resolve)
+- `DELETE /comments/:id?project=`
+
+### Prototype config
+
+```ts
+import { init } from 'redline-inspect';
+
+init({
+  sync: {
+    endpoint: 'https://redline-comments.<account>.workers.dev',
+    project: 'myna',
+    key: '<YOUR_KEY>',
+  },
+});
+```
+
+Or via the IIFE / Vite inject:
+
+```html
+<script>
+  window.REDLINE_CONFIG = {
+    sync: {
+      endpoint: 'https://redline-comments.<account>.workers.dev',
+      project: 'myna',
+      key: '<YOUR_KEY>',
+    },
+  };
+</script>
+```
+
+When `sync` is set, redline loads comments on page load and whenever the panel opens, exposes a **Refresh** button, and polls every 30s while the panel is open. Writes are optimistic and roll back with a toast on failure. `localStorage` remains a cache / offline fallback. The first time someone comments they are asked for a display name (stored as `redline:author`); it can be changed from the Comments tab.
+
+Without `sync`, behavior is unchanged (local-only).
 
 ---
 

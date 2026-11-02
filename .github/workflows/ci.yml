@@ -15,9 +15,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix worker
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
+      - run: npm run test:worker
       - run: npm run build
       - run: npm run size
       - run: npx playwright install --with-deps chromium firefox webkit
