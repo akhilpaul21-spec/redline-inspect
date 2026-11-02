@@ -1,7 +1,7 @@
 import { shortestUniqueSelector } from '../util/selector';
 import { collectFontFaces, detectIconFontUsage } from './fonts';
 import { isIconSvg, resolveUse, sanitizeSvg } from './svg';
-import { nameFromElement, slugify } from './naming';
+import { fileNameFromUrl, nameFromElement, slugify, suggestedFileName } from './naming';
 
 export interface CollectedAsset {
   kind: string;
@@ -63,9 +63,7 @@ export async function collectAssets(
     if (done % 50 === 0) opts.onProgress?.(done, total);
 
     if (el instanceof HTMLImageElement) {
-      const baseName = slugify(
-        el.id?.replace(/-img$/, '') || nameFromElement(el, 'image'),
-      );
+      const fallbackStem = el.id?.replace(/-img$/, '') || nameFromElement(el, 'image');
       const src = el.currentSrc || el.src;
       const seenSrc = new Set<string>();
       if (el.srcset) {
@@ -75,10 +73,14 @@ export async function collectAssets(
           const abs = new URL(u, location.href).href;
           seenSrc.add(abs);
           const isSvg = /\.svg(\?|$)/i.test(abs) || abs.startsWith('data:image/svg');
+          const fromFile = fileNameFromUrl(abs);
+          const suggestedName = fromFile
+            ? injectDensity(fromFile, dens || '1x')
+            : slugify(fallbackStem) + densitySuffix(dens || '1x') + (isSvg ? '.svg' : extFromUrl(abs) || '.jpg');
           push({
             kind: 'img',
             sourceUrl: abs,
-            suggestedName: baseName + densitySuffix(dens || '1x') + (isSvg ? '.svg' : extFromUrl(abs) || '.jpg'),
+            suggestedName,
             folder: 'images',
             usedBy: [usedBy(el)],
             density: dens || '1x',
@@ -93,7 +95,7 @@ export async function collectAssets(
         push({
           kind: 'img',
           sourceUrl: src,
-          suggestedName: baseName + (isSvg ? '.svg' : extFromUrl(src) || '.jpg'),
+          suggestedName: suggestedFileName(src, fallbackStem, isSvg ? '.svg' : '.jpg'),
           folder: isSvg && rect.width <= 48 && rect.height <= 48 ? 'icons' : 'images',
           usedBy: [usedBy(el)],
           natural: { w: el.naturalWidth, h: el.naturalHeight },
@@ -107,10 +109,14 @@ export async function collectAssets(
       for (const part of el.srcset.split(',')) {
         const [u, dens] = part.trim().split(/\s+/);
         if (!u) continue;
+        const abs = new URL(u, location.href).href;
+        const fromFile = fileNameFromUrl(abs);
         push({
           kind: 'picture-source',
-          sourceUrl: new URL(u, location.href).href,
-          suggestedName: slugify('picture') + densitySuffix(dens) + (extFromUrl(u) || '.bin'),
+          sourceUrl: abs,
+          suggestedName: fromFile
+            ? injectDensity(fromFile, dens)
+            : slugify('picture') + densitySuffix(dens) + (extFromUrl(u) || '.bin'),
           folder: 'images',
           usedBy: [usedBy(el.parentElement || el)],
           density: dens,
@@ -140,16 +146,16 @@ export async function collectAssets(
       push({
         kind: 'img',
         sourceUrl: el.poster,
-        suggestedName: slugify('poster') + extFromUrl(el.poster),
+        suggestedName: suggestedFileName(el.poster, 'poster', '.jpg'),
         folder: 'images',
         usedBy: [usedBy(el)],
       });
     }
 
-    // CSS backgrounds
+    // CSS backgrounds / masks (skip url(#clip) fragment refs — not fetchable images)
     try {
       const style = getComputedStyle(el);
-      for (const prop of ['backgroundImage', 'maskImage', 'listStyleImage'] as const) {
+      for (const prop of ['backgroundImage', 'maskImage', 'webkitMaskImage', 'listStyleImage', 'clipPath'] as const) {
         const val = (style as any)[prop] as string;
         if (!val || val === 'none') continue;
         if (/gradient\(/i.test(val)) {
@@ -157,19 +163,22 @@ export async function collectAssets(
         }
         for (const m of val.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
           const url = m[1]!;
+          // SVG mask/clip path references like url(#mask) are not assets.
+          if (url.startsWith('#')) continue;
+          const abs = new URL(url, location.href).href;
           if (url.startsWith('data:image/svg') || /\.svg(\?|$)/i.test(url)) {
             push({
               kind: 'background',
-              sourceUrl: new URL(url, location.href).href,
-              suggestedName: slugify(nameFromElement(el, 'bg')) + '.svg',
+              sourceUrl: abs,
+              suggestedName: suggestedFileName(abs, nameFromElement(el, 'bg'), '.svg'),
               folder: 'icons',
               usedBy: [usedBy(el)],
             });
           } else {
             push({
               kind: 'background',
-              sourceUrl: new URL(url, location.href).href,
-              suggestedName: slugify(nameFromElement(el, 'bg')) + (extFromUrl(url) || '.png'),
+              sourceUrl: abs,
+              suggestedName: suggestedFileName(abs, nameFromElement(el, 'bg'), '.png'),
               folder: 'images',
               usedBy: [usedBy(el)],
             });
@@ -188,7 +197,7 @@ export async function collectAssets(
       push({
         kind: 'favicon',
         sourceUrl: href,
-        suggestedName: 'favicon' + (extFromUrl(href) || '.ico'),
+        suggestedName: suggestedFileName(href, 'favicon', '.ico'),
         folder: 'icons',
         usedBy: ['link[rel~=icon]'],
       });
@@ -199,10 +208,15 @@ export async function collectAssets(
   if (opts.includeFonts !== false) {
     for (const font of fonts) {
       for (const url of font.urls) {
+        const abs = new URL(url, location.href).href;
+        const fromFile = fileNameFromUrl(abs);
         push({
           kind: 'font',
-          sourceUrl: new URL(url, location.href).href,
-          suggestedName: `${slugify(font.family)}-${font.weight}-${font.style}${extFromUrl(url) || '.woff2'}`,
+          sourceUrl: abs,
+          // Prefer the font file basename (spaces → hyphens); else family-weight-style.
+          suggestedName:
+            fromFile ||
+            `${slugify(font.family)}-${String(font.weight).replace(/\s+/g, '')}-${String(font.style).replace(/\s+/g, '')}${extFromUrl(url) || '.woff2'}`,
           folder: 'fonts',
           usedBy: [font.family],
         });
@@ -257,4 +271,10 @@ function densitySuffix(dens?: string): string {
   if (/^\d+(\.\d+)?x$/.test(dens)) return `@${dens}`;
   if (/^\d+w$/.test(dens)) return `-${dens}`;
   return '';
+}
+
+function injectDensity(fileName: string, dens?: string): string {
+  const suffix = densitySuffix(dens);
+  if (!suffix) return fileName.replace(/\s+/g, '-');
+  return fileName.replace(/(\.[a-z0-9]+)$/i, `${suffix}$1`).replace(/\s+/g, '-');
 }

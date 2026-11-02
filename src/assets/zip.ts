@@ -97,18 +97,14 @@ export async function exportAssetsZip(
         const res = await fetchAsset(asset.sourceUrl, {
           sameOriginOnly: assetsCfg.sameOriginOnly,
           timeoutMs,
+          expectBinary: asset.kind !== 'svg-inline',
         });
         if (res.ok) {
           buffer = res.buffer;
           mime = res.mime;
-        } else if (
-          // Canvas fallback only helps for painted cross-origin images (CORS on fetch).
-          // Never use it for timeout/404/network — an unloaded <img> still yields an empty PNG
-          // and would hide the hang that stuck export on "Preparing…".
-          res.reason === 'cors' &&
-          asset.element instanceof HTMLImageElement &&
-          asset.element.naturalWidth > 0
-        ) {
+        } else if (asset.element instanceof HTMLImageElement) {
+          // Redraw painted <img>s when fetch is blocked (CORS / cookie wall / wrong-type HTML).
+          // canvasFallback itself refuses unloaded images (naturalWidth === 0).
           const fb = await canvasFallback(asset.element, timeoutMs);
           if (fb) {
             buffer = fb;
@@ -300,6 +296,9 @@ export function downloadBlob(blob: Blob, filename: string): void {
   a.download = filename;
   a.rel = 'noopener';
   a.style.display = 'none';
+  // Inspect mode's window capture listener would cancel this click and select
+  // whatever sits at (0,0). Tag so events.ts lets the download through.
+  a.setAttribute('data-redline-download', '');
   // Always attach to document.body (not the shadow root) so the gesture survives
   // the long await chain of asset collection.
   document.body.appendChild(a);

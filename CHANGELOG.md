@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Abort timeouts are labeled `timeout` instead of being mis-reported as `cors`
 - Content dedupe uses a hash map (was O(n²) SHA-1 rehash of every prior file)
 - Download anchor is always appended to `document.body` and the object URL is revoked after click
+- Inspect mode no longer cancels the ZIP download click (or selects the logo at 0,0); download links use `data-redline-download`
+- Same-origin asset fetches send cookies (`credentials: 'same-origin'`) so password-/session-gated previews work
+- `url(#…)` SVG mask/clip references are not collected as images; HTML login/error bodies are rejected as `wrong-type`
+- Painted `<img>` canvas redraw restored when fetch is blocked
+- ZIP entry names prefer the source basename (`Jay.svg`) and strip spaces from font filenames
 
 ### Changed
 

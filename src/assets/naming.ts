@@ -10,6 +10,39 @@ export function slugify(input: string, max = 60): string {
   return s || 'asset';
 }
 
+/** Prefer the source basename (Jay.svg), strip spaces, keep a readable stem. */
+export function fileNameFromUrl(url: string | null | undefined): string | null {
+  if (!url || url.startsWith('data:') || url.startsWith('blob:')) return null;
+  try {
+    const path = new URL(url, typeof location !== 'undefined' ? location.href : 'http://localhost').pathname;
+    const base = decodeURIComponent(path.split('/').pop() || '');
+    if (!base || !/\.[a-z0-9]+$/i.test(base)) return null;
+    // Preserve case (Jay.svg) but never allow spaces in zip entry names.
+    return base.replace(/\s+/g, '-');
+  } catch {
+    return null;
+  }
+}
+
+/** Build a zip entry name: source file first, else slugified fallback + extension. */
+export function suggestedFileName(url: string | null | undefined, fallbackStem: string, defaultExt: string): string {
+  const fromUrl = fileNameFromUrl(url);
+  if (fromUrl) return fromUrl.replace(/\s+/g, '-');
+  const stem = slugify(fallbackStem).replace(/\s+/g, '-');
+  const ext = (url && extOf(url)) || defaultExt;
+  return `${stem}${ext.startsWith('.') ? ext : `.${ext}`}`;
+}
+
+function extOf(url: string): string {
+  try {
+    const path = new URL(url, typeof location !== 'undefined' ? location.href : 'http://localhost').pathname;
+    const m = path.match(/\.[a-z0-9]+$/i);
+    return m ? m[0]!.toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
 export function dedupeName(name: string, used: Map<string, string>, contentHash: string): string {
   const existing = used.get(name);
   if (!existing) {

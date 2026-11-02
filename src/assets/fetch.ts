@@ -1,4 +1,4 @@
-export type FetchFailReason = 'cors' | 'network' | 'tainted' | '404' | 'timeout';
+export type FetchFailReason = 'cors' | 'network' | 'tainted' | '404' | 'timeout' | 'wrong-type';
 
 /** Default per-asset fetch budget (ms). */
 export const ASSET_FETCH_TIMEOUT_MS = 8_000;
@@ -19,9 +19,24 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label = 'timeout
   });
 }
 
+/** True when a response is an HTML document (e.g. login / 401 page) instead of an image or font. */
+export function isHtmlPayload(mime: string, buffer: ArrayBuffer): boolean {
+  if (/text\/html/i.test(mime) || /application\/xhtml\+xml/i.test(mime)) return true;
+  const head = new TextDecoder()
+    .decode(new Uint8Array(buffer).slice(0, 256))
+    .trimStart()
+    .toLowerCase();
+  return head.startsWith('<!doctype html') || head.startsWith('<html');
+}
+
 export async function fetchAsset(
   url: string,
-  opts: { timeoutMs?: number; sameOriginOnly?: boolean } = {},
+  opts: {
+    timeoutMs?: number;
+    sameOriginOnly?: boolean;
+    /** When set, HTML login/error pages are rejected as wrong-type. */
+    expectBinary?: boolean;
+  } = {},
 ): Promise<{ ok: true; buffer: ArrayBuffer; mime: string } | { ok: false; reason: FetchFailReason }> {
   const timeoutMs = opts.timeoutMs ?? ASSET_FETCH_TIMEOUT_MS;
 
@@ -50,11 +65,11 @@ export async function fetchAsset(
       const res = await fetch(url, { signal: ctrl.signal });
       if (!res.ok) return { ok: false, reason: 'network' };
       const buffer = await res.arrayBuffer();
-      return {
-        ok: true,
-        buffer,
-        mime: res.headers.get('content-type') || 'application/octet-stream',
-      };
+      const mime = res.headers.get('content-type') || 'application/octet-stream';
+      if (opts.expectBinary !== false && isHtmlPayload(mime, buffer)) {
+        return { ok: false, reason: 'wrong-type' };
+      }
+      return { ok: true, buffer, mime };
     } catch {
       return { ok: false, reason: ctrl.signal.aborted ? 'timeout' : 'network' };
     } finally {
@@ -73,17 +88,25 @@ export async function fetchAsset(
     return { ok: false, reason: 'cors' };
   }
 
+  const sameOrigin = absolute.origin === location.origin;
   const ctrl = new AbortController();
   const t = window.setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(absolute.href, { mode: 'cors', credentials: 'omit', signal: ctrl.signal });
+    // Password-protected / cookie-gated same-origin assets need credentials.
+    // Cross-origin stays omit so we don't leak cookies.
+    const res = await fetch(absolute.href, {
+      mode: 'cors',
+      credentials: sameOrigin ? 'same-origin' : 'omit',
+      signal: ctrl.signal,
+    });
     if (res.status === 404) return { ok: false, reason: '404' };
     if (!res.ok) return { ok: false, reason: 'network' };
-    return {
-      ok: true,
-      buffer: await res.arrayBuffer(),
-      mime: res.headers.get('content-type') || 'application/octet-stream',
-    };
+    const buffer = await res.arrayBuffer();
+    const mime = res.headers.get('content-type') || 'application/octet-stream';
+    if (opts.expectBinary !== false && isHtmlPayload(mime, buffer)) {
+      return { ok: false, reason: 'wrong-type' };
+    }
+    return { ok: true, buffer, mime };
   } catch {
     // Aborts were previously mis-labeled as cors, which hid real hangs behind a soft skip
     // that never arrived because the request never settled without a working AbortController.
@@ -99,6 +122,7 @@ export async function canvasFallback(
   timeoutMs = ASSET_FETCH_TIMEOUT_MS,
 ): Promise<ArrayBuffer | null> {
   try {
+    if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return null;
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth || img.width;
     canvas.height = img.naturalHeight || img.height;

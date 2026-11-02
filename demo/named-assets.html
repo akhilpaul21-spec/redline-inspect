@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redline naming / mask fixture</title>
+  <style>
+    .size-5 { width: 20px; height: 20px; }
+    .masked {
+      width: 40px;
+      height: 40px;
+      background: #333;
+      -webkit-mask-image: url(#hole);
+      mask-image: url(#hole);
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true">
+    <defs>
+      <mask id="hole"><rect width="40" height="40" fill="#fff" /></mask>
+    </defs>
+  </svg>
+  <img class="size-5" id="jay" src="/Jay.svg" width="20" height="20" alt="Jay" />
+  <div class="masked" id="masked"></div>
+  <script type="module">
+    import { init } from 'redline-inspect';
+    window.__redline = init({ startActive: false });
+  </script>
+</body>
+</html>

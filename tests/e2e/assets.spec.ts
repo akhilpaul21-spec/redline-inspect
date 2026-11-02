@@ -28,7 +28,7 @@ test.describe('asset export', () => {
     ).toBeTruthy();
     expect(files.some((f: string) => f.includes('hero'))).toBeTruthy();
     expect(files.some((f: string) => f.includes('pattern'))).toBeTruthy();
-    expect(files.some((f: string) => f.startsWith('fonts/') && f.includes('inter'))).toBeTruthy();
+    expect(files.some((f: string) => f.startsWith('fonts/') && /inter/i.test(f))).toBeTruthy();
     const svgFile = files.find((f: string) => f.endsWith('.svg'));
     if (svgFile) {
       const svg = await zip.file(svgFile)!.async('string');
@@ -139,5 +139,70 @@ test.describe('asset export', () => {
     // Page still has a successful same-origin image.
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
     expect(manifest.assets.length).toBeGreaterThan(0);
+  });
+
+  test('inspect mode ON still triggers a real ZIP download', async ({ page }) => {
+    await page.goto('/');
+    // Active inspect installs the window click blocker that previously canceled a.click().
+    await page.evaluate(() => (window as any).__redline.toggle(true));
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30_000 }),
+      page.evaluate(() => (window as any).__redline.exportAssets()),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/assets\.(zip|json)$/);
+    const fs = await import('node:fs/promises');
+    const bytes = await fs.readFile((await download.path())!);
+    expect(bytes[0]).toBe(0x50);
+    expect(bytes[1]).toBe(0x4b);
+    const zip = await JSZip.loadAsync(bytes);
+    expect(zip.file('manifest.json')).toBeTruthy();
+  });
+
+  test('cookie-gated same-origin asset exports with credentials', async ({ page }) => {
+    // Real Vite middleware gates /authed-hero.png on Cookie (Playwright page.route
+    // strips cookies on WebKit, so this must hit the demo server).
+    await page.context().addCookies([
+      { name: 'session', value: 'ok', domain: '127.0.0.1', path: '/' },
+    ]);
+    await page.goto('/auth-cookie.html');
+    await page.evaluate(() => {
+      document.cookie = 'session=ok; path=/';
+    });
+    // Reload so the <img> and later export fetch both carry the session cookie.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    const bytes = await page.evaluate(async () => {
+      const blob = await (window as any).__redline.exportAssets();
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
+    });
+    const zip = await JSZip.loadAsync(new Uint8Array(bytes));
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+    const files = (manifest.assets as Array<{ file: string; sourceUrl?: string }>).map((a) => a.file);
+    expect(files.some((f) => /authed-hero/i.test(f))).toBe(true);
+    const skipped = manifest.skipped ?? [];
+    expect(skipped.some((s: any) => String(s.url).includes('authed-hero'))).toBe(false);
+  });
+
+  test('names follow source file; url(#) masks are not collected', async ({ page }) => {
+    await page.goto('/named-assets.html');
+    const bytes = await page.evaluate(async () => {
+      const blob = await (window as any).__redline.exportAssets();
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
+    });
+    const zip = await JSZip.loadAsync(new Uint8Array(bytes));
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+    const files = (manifest.assets as Array<{ file: string; sourceUrl?: string | null }>).map((a) => a.file);
+    expect(files.some((f) => /Jay\.svg$/i.test(f))).toBe(true);
+    expect(files.some((f) => /size-5/i.test(f))).toBe(false);
+    // Fragment mask refs must not appear as fetchable assets.
+    expect(
+      (manifest.assets as Array<{ sourceUrl?: string | null }>).some((a) =>
+        String(a.sourceUrl || '').includes('#'),
+      ),
+    ).toBe(false);
+    expect(
+      (manifest.skipped as Array<{ url?: string }> | undefined)?.some((s) => String(s.url || '').endsWith('#hole')),
+    ).toBeFalsy();
   });
 });
