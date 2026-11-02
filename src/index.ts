@@ -229,9 +229,9 @@ export function init(config?: RedlineConfig): RedlineInstance {
   }
 
   async function doExportAssets(): Promise<Blob> {
-    showToast(root.shadow, 'Collecting…', 10_000);
+    showToast(root.shadow, 'Preparing…', 60_000);
     try {
-      const blob = await exportAssetsZip(cfg, (msg) => showToast(root.shadow, msg, 10_000), comments);
+      const blob = await exportAssetsZip(cfg, (msg) => showToast(root.shadow, msg, 60_000), comments);
       const name =
         cfg.assets.zipName ||
         `${location.hostname || 'page'}-assets.${blob.type.includes('json') ? 'json' : 'zip'}`;
@@ -239,7 +239,8 @@ export function init(config?: RedlineConfig): RedlineInstance {
       showToast(root.shadow, 'Export complete');
       return blob;
     } catch (err) {
-      showToast(root.shadow, 'Export failed');
+      const detail = err instanceof Error && err.message ? err.message : 'unknown error';
+      showToast(root.shadow, `Export failed: ${detail}`, 5_000);
       throw err;
     }
   }

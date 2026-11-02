@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redline export hang fixture</title>
+  <!-- Cross-origin stylesheet: cssRules access must not break export -->
+  <link rel="stylesheet" href="https://cors-sheet.invalid/theme.css" />
+</head>
+<body>
+  <h1>Export hang / skip fixture</h1>
+  <p>Assets below are routed by Playwright to hang, 404, or CORS-fail.</p>
+  <img id="ok-img" src="/hero.jpg" width="80" height="40" alt="ok" />
+  <img id="hang-img" src="https://hang-fixture.invalid/slow.png" width="64" height="64" alt="hang" />
+  <img id="missing-img" src="https://missing-fixture.invalid/nope.png" width="64" height="64" alt="404" />
+  <img
+    id="cors-img"
+    src="https://cors-fixture.invalid/no-cors.png"
+    width="64"
+    height="64"
+    alt="cors"
+    crossorigin="anonymous"
+  />
+  <div id="bg" style="width:40px;height:40px;background-image:url('https://cors-fixture.invalid/bg.png')"></div>
+  <script type="module">
+    import { init } from 'redline-inspect';
+    window.__redline = init({ startActive: false });
+  </script>
+</body>
+</html>

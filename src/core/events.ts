@@ -36,10 +36,16 @@ function matchShortcut(e: KeyboardEvent, shortcut: string): boolean {
   return code === expected || e.key.toLowerCase() === keyPart;
 }
 
+function isRedlineDownloadTarget(t: EventTarget | null): boolean {
+  const el = t instanceof Element ? t : t instanceof Node ? t.parentElement : null;
+  return !!el?.closest?.('[data-redline-download]');
+}
+
 export function attachEvents(store: Store, handlers: EventHandlers): () => void {
   const block = (e: Event) => {
     if (!store.get().active) return;
     const t = e.target as Node | null;
+    if (isRedlineDownloadTarget(t)) return; // allow synthetic ZIP download clicks
     const shadow = handlers.getShadowRoot();
     if (t && shadow && (t === shadow.host || shadow.contains(t as Node) || (t as any).getRootNode?.() === shadow)) {
       return; // allow UI interaction
@@ -53,6 +59,7 @@ export function attachEvents(store: Store, handlers: EventHandlers): () => void 
     if (!store.get().active) return;
     const shadow = handlers.getShadowRoot();
     const t = e.target as Node | null;
+    if (isRedlineDownloadTarget(t)) return;
     if (t && shadow && (shadow.host.contains(t) || (t as any).getRootNode?.() === shadow)) return;
     block(e);
     if (e.type === 'click' || e.type === 'mousedown' || e.type === 'pointerdown') {

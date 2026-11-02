@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-02
+
+### Fixed
+
+- Assets ZIP export no longer hangs forever on a single stuck fetch, `blob:` URL, canvas fallback, or JSZip CDN load
+- Per-asset fetches abort after ~8s and are recorded in `manifest.skipped` (alias `unfetchable`) so the ZIP still downloads
+- Abort timeouts are labeled `timeout` instead of being mis-reported as `cors`
+- Content dedupe uses a hash map (was O(n²) SHA-1 rehash of every prior file)
+- Download anchor is always appended to `document.body` and the object URL is revoked after click
+- Inspect mode no longer cancels the ZIP download click (or selects the logo at 0,0); download links use `data-redline-download`
+- Same-origin asset fetches send cookies (`credentials: 'same-origin'`) so password-/session-gated previews work
+- `url(#…)` SVG mask/clip references are not collected as images; HTML login/error bodies are rejected as `wrong-type`
+- Painted `<img>` canvas redraw restored when fetch is blocked
+- ZIP entry names prefer the source basename (`Jay.svg`) and strip spaces from font filenames
+
+### Changed
+
+- Export progress toast reads `Preparing n/m` (was `Collecting…`)
+- Failed exports show an error toast with the failure detail
+
 ## [0.2.1] - 2026-11-01
 
 ### Fixed
@@ -56,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite plugin (dev-only injection by default), IIFE auto-init, bookmarklet
 - Demo fixture page, Vitest unit tests, Playwright e2e, size-limit CI (≤ 50 KB gzip core)
 
+[0.2.2]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.2
 [0.2.1]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.1
 [0.2.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.2.0
 [0.1.0]: https://github.com/akhilpaul21-spec/redline-inspect/releases/tag/v0.1.0

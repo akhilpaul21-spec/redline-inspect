@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>redline cookie-gated asset fixture</title>
+</head>
+<body>
+  <h1>Cookie-gated assets</h1>
+  <p>
+    <code>/authed-hero.png</code> requires a <code>session</code> cookie. Without it the server
+    returns an HTML login page (401). Export must send same-origin credentials and reject HTML.
+  </p>
+  <img id="authed-img" src="/authed-hero.png" width="64" height="64" alt="authed" />
+  <img id="public-img" src="/hero.jpg" width="80" height="40" alt="public" />
+  <script type="module">
+    import { init } from 'redline-inspect';
+    window.__redline = init({ startActive: false });
+  </script>
+</body>
+</html>
